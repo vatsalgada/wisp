@@ -3,11 +3,11 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var appModel: AppModel
-    @State private var windowTopInset: CGFloat = 52
+    private let chromeClearance: CGFloat = 86
 
     var body: some View {
         HSplitView {
-            SidebarView(appModel: appModel, windowTopInset: windowTopInset)
+            SidebarView(appModel: appModel, chromeClearance: chromeClearance)
                 .frame(minWidth: 220, idealWidth: 248, maxWidth: 280)
 
             ZStack {
@@ -16,7 +16,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     DetailHeader(appModel: appModel)
                         .padding(.horizontal, 28)
-                        .padding(.top, 28)
+                        .padding(.top, chromeClearance)
                         .padding(.bottom, 20)
 
                     detailContent
@@ -24,9 +24,7 @@ struct ContentView: View {
                 }
             }
         }
-        .padding(.top, windowTopInset)
         .tint(WispPalette.accent)
-        .background(WindowChromeConfigurator(topInset: $windowTopInset))
         .task {
             appModel.refreshEnvironment()
         }
@@ -55,196 +53,189 @@ struct ContentView: View {
     }
 }
 
-private struct WindowChromeConfigurator: NSViewRepresentable {
-    @Binding var topInset: CGFloat
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            configureWindowIfNeeded(for: view)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            configureWindowIfNeeded(for: nsView)
-        }
-    }
-
-    @MainActor
-    private func configureWindowIfNeeded(for view: NSView) {
-        guard let window = view.window else {
-            return
-        }
-
-        window.styleMask.formUnion([.titled, .closable, .miniaturizable, .resizable])
-        window.styleMask.remove(.fullSizeContentView)
-
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = false
-        window.toolbarStyle = .automatic
-        window.minSize = NSSize(width: 880, height: 640)
-        window.maxSize = NSSize(width: 10_000, height: 10_000)
-
-        let measuredInset = max(window.frame.height - window.contentLayoutRect.height, 0)
-        let resolvedInset = max(measuredInset, 28)
-        if abs(topInset - resolvedInset) > 0.5 {
-            topInset = resolvedInset
-        }
-    }
-}
-
 private struct DetailScrollView<Content: View>: View {
     @ViewBuilder let content: Content
+    private let topAnchorID = "detail-scroll-top"
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
     var body: some View {
-        ScrollView {
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 28)
-                .padding(.bottom, 28)
+        ScrollViewReader { proxy in
+            ScrollView {
+                Color.clear
+                    .frame(height: 1)
+                    .id(topAnchorID)
+
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 28)
+            }
+            .defaultScrollAnchor(.top)
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .onAppear {
+                DispatchQueue.main.async {
+                    proxy.scrollTo(topAnchorID, anchor: .top)
+                }
+            }
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
 private struct SidebarView: View {
     @Bindable var appModel: AppModel
-    let windowTopInset: CGFloat
+    let chromeClearance: CGFloat
+    private let topAnchorID = "sidebar-scroll-top"
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 12) {
-                        ZStack {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        WispPalette.accent,
-                                        WispPalette.accentStrong
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                                )
-                                .frame(width: 46, height: 46)
+        VStack(alignment: .leading, spacing: 18) {
+            sidebarHeader
 
-                            Image(systemName: "waveform")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(.white)
-                        }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Color.clear
+                        .frame(height: 1)
+                        .id(topAnchorID)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Wisp")
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(WispPalette.ink)
-                            Text("Local dictation studio")
-                                .font(.subheadline)
-                                .foregroundStyle(WispPalette.muted)
-                        }
+                    VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SidebarSectionTitle("Workspace")
 
-                        Spacer()
-                    }
-
-                    HStack(spacing: 10) {
-                        StatusDot(color: appModel.isDictating ? .red : .green)
-                        Text(appModel.isDictating ? "Recording live" : "Ready for capture")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(WispPalette.muted)
-                    }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(WispPalette.subtlePanelTop, in: Capsule())
-            }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    SidebarSectionTitle("Workspace")
-
-                    ForEach(AppModel.SidebarItem.allCases) { item in
-                        SidebarButton(
-                            title: item.title,
-                            symbolName: item.symbolName,
-                            isSelected: appModel.selectedSidebarItem == item
-                        ) {
-                            appModel.selectedSidebarItem = item
+                        ForEach(AppModel.SidebarItem.allCases) { item in
+                            SidebarButton(
+                                title: item.title,
+                                symbolName: item.symbolName,
+                                isSelected: appModel.selectedSidebarItem == item
+                            ) {
+                                appModel.selectedSidebarItem = item
+                            }
                         }
                     }
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    SidebarSectionTitle("Quick Actions")
-
-                    SidebarActionRow(
-                        title: "Prepare model",
-                        subtitle: appModel.modelIsAvailable ? "Cached and ready offline" : "Download for offline use",
-                        symbolName: "arrow.down.circle"
-                    ) {
-                        Task {
-                            await appModel.prepareModelIfNeeded()
-                        }
-                    }
-
-                    SidebarActionRow(
-                        title: "Transcribe a file",
-                        subtitle: "Import audio from disk",
-                        symbolName: "waveform.and.magnifyingglass"
-                    ) {
-                        Task {
-                            await appModel.transcribeFromOpenPanel()
-                        }
-                    }
-
-                    SidebarActionRow(
-                        title: "Open settings",
-                        subtitle: "Tune defaults and behavior",
-                        symbolName: "gearshape"
-                    ) {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    SidebarSectionTitle("Current model")
 
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(appModel.selectedModel.displayName)
-                                    .font(.headline)
-                                    .foregroundStyle(WispPalette.ink)
-                                Text(appModel.selectedModel.recommendedLabel.capitalized)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(WispPalette.muted)
+                        SidebarSectionTitle("Quick Actions")
+
+                        SidebarActionRow(
+                            title: "Prepare model",
+                            subtitle: appModel.modelIsAvailable ? "Cached and ready offline" : "Download for offline use",
+                            symbolName: "arrow.down.circle"
+                        ) {
+                            Task {
+                                await appModel.prepareModelIfNeeded()
                             }
-                            Spacer()
-                            Image(systemName: "cpu")
-                                .foregroundStyle(WispPalette.muted)
                         }
 
-                        Text(appModel.selectedModel.summary)
-                            .font(.caption)
-                            .foregroundStyle(WispPalette.muted)
-                            .lineLimit(3)
+                        SidebarActionRow(
+                            title: "Transcribe a file",
+                            subtitle: "Import audio from disk",
+                            symbolName: "waveform.and.magnifyingglass"
+                        ) {
+                            Task {
+                                await appModel.transcribeFromOpenPanel()
+                            }
+                        }
+
+                        SidebarActionRow(
+                            title: "Open settings",
+                            subtitle: "Tune defaults and behavior",
+                            symbolName: "gearshape"
+                        ) {
+                            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SidebarSectionTitle("Current model")
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(appModel.selectedModel.displayName)
+                                        .font(.headline)
+                                        .foregroundStyle(WispPalette.ink)
+                                    Text(appModel.selectedModel.recommendedLabel.capitalized)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(WispPalette.muted)
+                                }
+                                Spacer()
+                                Image(systemName: "cpu")
+                                    .foregroundStyle(WispPalette.muted)
+                            }
+
+                            Text(appModel.selectedModel.summary)
+                                .font(.caption)
+                                .foregroundStyle(WispPalette.muted)
+                                .lineLimit(3)
+                        }
+                    }
+                    .padding(15)
+                    .panelBackground(prominent: false)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 20)
+                }
+                .defaultScrollAnchor(.top)
+                .scrollBounceBehavior(.basedOnSize)
+                .onAppear {
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(topAnchorID, anchor: .top)
                     }
                 }
-                .padding(15)
-                .panelBackground(prominent: false)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 20)
         }
-        .scrollBounceBehavior(.basedOnSize)
+        .padding(.horizontal, 20)
+        .padding(.top, chromeClearance)
+        .padding(.bottom, 20)
         .background(SidebarBackground())
+    }
+
+    private var sidebarHeader: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    WispPalette.accent,
+                                    WispPalette.accentStrong
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 46, height: 46)
+
+                    Image(systemName: "waveform")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Wisp")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(WispPalette.ink)
+                    Text("Local dictation studio")
+                        .font(.subheadline)
+                        .foregroundStyle(WispPalette.muted)
+                }
+
+                Spacer()
+            }
+
+            HStack(spacing: 10) {
+                StatusDot(color: appModel.isDictating ? .red : .green)
+                Text(appModel.isDictating ? "Recording live" : "Ready for capture")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(WispPalette.muted)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(WispPalette.subtlePanelTop, in: Capsule())
+        }
     }
 }
 
