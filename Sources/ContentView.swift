@@ -49,58 +49,43 @@ struct ContentView: View {
             DetailScrollView {
                 PermissionsView(appModel: appModel)
             }
+        case .settings:
+            DetailScrollView {
+                SettingsPageView(appModel: appModel)
+            }
         }
     }
 }
 
 private struct DetailScrollView<Content: View>: View {
     @ViewBuilder let content: Content
-    private let topAnchorID = "detail-scroll-top"
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                Color.clear
-                    .frame(height: 1)
-                    .id(topAnchorID)
-
-                content
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 28)
-            }
-            .defaultScrollAnchor(.top)
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .onAppear {
-                DispatchQueue.main.async {
-                    proxy.scrollTo(topAnchorID, anchor: .top)
-                }
-            }
+        ScrollView {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 28)
+                .padding(.bottom, 28)
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
 private struct SidebarView: View {
     @Bindable var appModel: AppModel
     let chromeClearance: CGFloat
-    private let topAnchorID = "sidebar-scroll-top"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             sidebarHeader
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    Color.clear
-                        .frame(height: 1)
-                        .id(topAnchorID)
-
-                    VStack(alignment: .leading, spacing: 22) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
                     VStack(alignment: .leading, spacing: 8) {
                         SidebarSectionTitle("Workspace")
 
@@ -143,7 +128,7 @@ private struct SidebarView: View {
                             subtitle: "Tune defaults and behavior",
                             symbolName: "gearshape"
                         ) {
-                            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                            appModel.selectedSidebarItem = .settings
                         }
                     }
 
@@ -173,18 +158,11 @@ private struct SidebarView: View {
                     }
                     .padding(15)
                     .panelBackground(prominent: false)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 20)
                 }
-                .defaultScrollAnchor(.top)
-                .scrollBounceBehavior(.basedOnSize)
-                .onAppear {
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(topAnchorID, anchor: .top)
-                    }
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 20)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
         .padding(.horizontal, 20)
         .padding(.top, chromeClearance)
@@ -265,9 +243,24 @@ private struct DetailHeader: View {
             Text(appModel.selectedSidebarItem?.title ?? "Capture")
                 .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(WispPalette.ink)
-            Text("Bundled runtime, local model cache, and a workspace that feels native on macOS.")
+            Text(headerSubtitle)
                 .foregroundStyle(WispPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var headerSubtitle: String {
+        switch appModel.selectedSidebarItem ?? .capture {
+        case .capture:
+            return "Bundled runtime, local model cache, and a workspace that feels native on macOS."
+        case .history:
+            return "Browse recent transcripts, reload prior sessions, and move between saved dictation artifacts."
+        case .models:
+            return "The runtime ships in the app bundle, while Wisp downloads and caches whichever local speech model you choose."
+        case .permissions:
+            return "Keep microphone and accessibility access healthy so recording and insertion stay reliable."
+        case .settings:
+            return "Choose appearance, launch behavior, and dictation defaults from a dedicated settings workspace."
         }
     }
 }
@@ -864,7 +857,7 @@ private struct HistorySearchField: View {
     }
 }
 
-private struct SectionHeader: View {
+struct SectionHeader: View {
     let title: String
     let subtitle: String
 
@@ -1319,7 +1312,7 @@ private struct CommandDock: View {
             }
 
             DockButton(title: "Settings", symbolName: "gearshape") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                appModel.selectedSidebarItem = .settings
             }
         }
         .padding(12)
@@ -1714,7 +1707,7 @@ private struct SidebarBackground: View {
     }
 }
 
-private extension View {
+extension View {
     func panelBackground(prominent: Bool = true) -> some View {
         self
             .background(
@@ -1736,7 +1729,7 @@ private extension View {
     }
 }
 
-private enum WispPalette {
+enum WispPalette {
     static let ink = dynamic(light: (0.13, 0.11, 0.10), dark: (0.95, 0.93, 0.90))
     static let muted = dynamic(light: (0.43, 0.39, 0.36), dark: (0.68, 0.64, 0.60))
     static let accent = dynamic(light: (0.91, 0.39, 0.15), dark: (0.98, 0.56, 0.28))

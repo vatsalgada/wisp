@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import Observation
 import OSLog
+import SwiftUI
 import UniformTypeIdentifiers
 
 private let modelLogger = Logger(subsystem: "com.wisp.app", category: "model")
@@ -9,11 +10,53 @@ private let modelLogger = Logger(subsystem: "com.wisp.app", category: "model")
 @MainActor
 @Observable
 final class AppModel {
+    enum ThemePreference: String, CaseIterable, Identifiable {
+        case system
+        case light
+        case dark
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .system:
+                return "Match macOS"
+            case .light:
+                return "Light"
+            case .dark:
+                return "Dark"
+            }
+        }
+
+        var symbolName: String {
+            switch self {
+            case .system:
+                return "circle.lefthalf.filled"
+            case .light:
+                return "sun.max.fill"
+            case .dark:
+                return "moon.stars.fill"
+            }
+        }
+
+        var preferredColorScheme: ColorScheme? {
+            switch self {
+            case .system:
+                return nil
+            case .light:
+                return .light
+            case .dark:
+                return .dark
+            }
+        }
+    }
+
     enum SidebarItem: String, CaseIterable, Identifiable {
         case capture
         case history
         case models
         case permissions
+        case settings
 
         var id: String { rawValue }
 
@@ -27,6 +70,8 @@ final class AppModel {
                 return "Models"
             case .permissions:
                 return "Permissions"
+            case .settings:
+                return "Settings"
             }
         }
 
@@ -40,6 +85,8 @@ final class AppModel {
                 return "cpu"
             case .permissions:
                 return "lock.shield"
+            case .settings:
+                return "gearshape"
             }
         }
     }
@@ -79,10 +126,27 @@ final class AppModel {
     }
 
     var selectedSidebarItem: SidebarItem? = .capture
-    var selectedModel: LocalModel = .baseEnglish
+    var selectedModel: LocalModel = .baseEnglish {
+        didSet {
+            defaults.set(selectedModel.rawValue, forKey: DefaultsKey.selectedModel.rawValue)
+        }
+    }
     var hotkey = "Command-Shift-D"
-    var launchAtLogin = false
-    var usePushToTalk = true
+    var launchAtLogin = false {
+        didSet {
+            defaults.set(launchAtLogin, forKey: DefaultsKey.launchAtLogin.rawValue)
+        }
+    }
+    var usePushToTalk = true {
+        didSet {
+            defaults.set(usePushToTalk, forKey: DefaultsKey.usePushToTalk.rawValue)
+        }
+    }
+    var themePreference: ThemePreference = .system {
+        didSet {
+            defaults.set(themePreference.rawValue, forKey: DefaultsKey.themePreference.rawValue)
+        }
+    }
 
     var workflowState: WorkflowState = .idle
     var statusMessage = "Run a local dictation from the main window or the menu bar."
@@ -102,8 +166,29 @@ final class AppModel {
     @ObservationIgnored private let modelDownloader = ModelDownloader()
     @ObservationIgnored private let runtime: any TranscriptionRuntime = WhisperRuntime()
     @ObservationIgnored private let textInsertion = TextInsertionService()
+    @ObservationIgnored private let defaults = UserDefaults.standard
+
+    private enum DefaultsKey: String {
+        case selectedModel = "selectedModel"
+        case launchAtLogin = "launchAtLogin"
+        case usePushToTalk = "usePushToTalk"
+        case themePreference = "themePreference"
+    }
 
     init() {
+        if let storedModel = defaults.string(forKey: DefaultsKey.selectedModel.rawValue),
+           let model = LocalModel(rawValue: storedModel) {
+            selectedModel = model
+        }
+        launchAtLogin = defaults.bool(forKey: DefaultsKey.launchAtLogin.rawValue)
+        if defaults.object(forKey: DefaultsKey.usePushToTalk.rawValue) != nil {
+            usePushToTalk = defaults.bool(forKey: DefaultsKey.usePushToTalk.rawValue)
+        }
+        if let storedTheme = defaults.string(forKey: DefaultsKey.themePreference.rawValue),
+           let theme = ThemePreference(rawValue: storedTheme) {
+            themePreference = theme
+        }
+
         refreshEnvironment()
         loadTranscriptHistoryFromDisk()
     }
@@ -284,6 +369,11 @@ final class AppModel {
         latestTranscript = latestTranscript
         refreshEnvironment()
         statusMessage = "Selected model: \(model.displayName)"
+    }
+
+    func updateThemePreference(_ preference: ThemePreference) {
+        themePreference = preference
+        statusMessage = "Appearance: \(preference.title)"
     }
 
     func transcribeFromOpenPanel() async {

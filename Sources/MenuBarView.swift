@@ -34,8 +34,7 @@ struct MenuBarView: View {
         }
 
         Button("Settings…") {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            NSApp.activate(ignoringOtherApps: true)
+            showMainWindow(selecting: .settings)
         }
         .keyboardShortcut(",", modifiers: [.command])
 

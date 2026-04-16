@@ -12,6 +12,7 @@ struct WispApp: App {
         WindowGroup("Wisp", id: "main") {
             ContentView(appModel: appModel)
                 .frame(minWidth: 880, minHeight: 640)
+                .preferredColorScheme(appModel.themePreference.preferredColorScheme)
                 .onAppear {
                     appLogger.notice("Main window appeared")
                     globalHotKeyManager.registerToggleHotKey {
@@ -42,7 +43,8 @@ struct WispApp: App {
 
         Settings {
             SettingsView(appModel: appModel)
-                .frame(width: 480, height: 320)
+                .frame(width: 560, height: 440)
+                .preferredColorScheme(appModel.themePreference.preferredColorScheme)
         }
 
         MenuBarExtra("Wisp", systemImage: appModel.isDictating ? "waveform.circle.fill" : "waveform.circle") {
