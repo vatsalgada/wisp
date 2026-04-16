@@ -122,32 +122,34 @@ private struct SettingsPageContent: View {
     private var modelPanel: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
-                title: "Defaults",
-                subtitle: "Keep the local runtime and default model in a healthy, ready-to-use state."
+                title: "Models",
+                subtitle: "Choose your default model and manage downloads from one clear place."
             )
 
             settingsValueRow(
                 title: "Default model",
                 value: appModel.selectedModel.displayName,
-                subtitle: appModel.selectedModel.summary
+                subtitle: appModel.selectedModelIsInstalled
+                    ? "\(appModel.selectedModel.displayName) is downloaded and ready for local dictation."
+                    : "Download \(appModel.selectedModel.displayName) in Models before using it for dictation."
             )
 
             Divider()
 
             settingsValueRow(
-                title: "Model cache",
-                value: appModel.modelIsAvailable ? "Ready offline" : "Needs download",
-                subtitle: appModel.modelIsAvailable ? appModel.modelPath : "Download the selected model to enable local transcription."
+                title: "Installed models",
+                value: appModel.installedModelCountText,
+                subtitle: "\(appModel.installedModelsStorageText) stored locally on this Mac."
             )
 
             HStack(spacing: 10) {
-                Button("Open Models") {
+                Button("Manage Models") {
                     appModel.selectedSidebarItem = .models
                 }
 
-                if appModel.modelIsAvailable {
-                    Button("Reveal Cache") {
-                        appModel.revealModelInFinder()
+                if !appModel.installedModels.isEmpty {
+                    Button("Open Models Folder") {
+                        appModel.openModelsFolder()
                     }
                 }
             }

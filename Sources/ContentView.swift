@@ -154,38 +154,6 @@ private struct SidebarView: View {
                         .id(topAnchor)
 
                     VStack(alignment: .leading, spacing: 22) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            SidebarSectionTitle("Quick Actions")
-
-                            SidebarActionRow(
-                                title: "Prepare model",
-                                subtitle: appModel.modelIsAvailable ? "Cached and ready offline" : "Download for offline use",
-                                symbolName: "arrow.down.circle"
-                            ) {
-                                Task {
-                                    await appModel.prepareModelIfNeeded()
-                                }
-                            }
-
-                            SidebarActionRow(
-                                title: "Transcribe a file",
-                                subtitle: "Import audio from disk",
-                                symbolName: "waveform.and.magnifyingglass"
-                            ) {
-                                Task {
-                                    await appModel.transcribeFromOpenPanel()
-                                }
-                            }
-
-                            SidebarActionRow(
-                                title: "Open settings",
-                                subtitle: "Tune defaults and behavior",
-                                symbolName: "gearshape"
-                            ) {
-                                appModel.selectedSidebarItem = .settings
-                            }
-                        }
-
                         VStack(alignment: .leading, spacing: 12) {
                             SidebarSectionTitle("Current model")
 
@@ -317,11 +285,11 @@ private struct DetailHeader: View {
     private var headerSubtitle: String {
         switch appModel.selectedSidebarItem ?? .capture {
         case .capture:
-            return "Bundled runtime, local model cache, and a workspace that feels native on macOS."
+            return "Bundled runtime, downloaded local models, and a workspace that feels native on macOS."
         case .history:
             return "Browse recent transcripts, reload prior sessions, and move between saved dictation artifacts."
         case .models:
-            return "The runtime ships in the app bundle, while Wisp downloads and caches whichever local speech model you choose."
+            return "Choose a downloaded default model and install more only when you need them."
         case .permissions:
             return "Keep microphone and accessibility access healthy so recording and insertion stay reliable."
         case .settings:
@@ -461,7 +429,7 @@ private struct CaptureDashboard: View {
     @ViewBuilder
     private var metadataPills: some View {
         MetadataPill(
-            title: appModel.modelIsAvailable ? "Model cached" : "Model pending",
+            title: appModel.modelIsAvailable ? "Model ready" : "Model needed",
             symbolName: appModel.modelIsAvailable ? "internaldrive.fill" : "arrow.down.circle"
         )
         MetadataPill(
@@ -766,69 +734,95 @@ private struct EmptyTranscriptPanel: View {
 
 private struct ModelsView: View {
     @Bindable var appModel: AppModel
+    private let cardColumns = [GridItem(.adaptive(minimum: 270), spacing: 16)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeader(
                 title: "Models",
-                subtitle: "The runtime ships in the app bundle, while Wisp downloads and caches whichever local speech model you choose."
+                subtitle: "Keep downloaded models organized on this Mac and install larger ones only when you want more accuracy."
             )
 
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 16) {
-                    modelHighlights
-                }
-
-                VStack(spacing: 16) {
-                    modelHighlights
-                }
-            }
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 16)], spacing: 16) {
-                ForEach(LocalModel.allCases) { model in
-                    ModelOptionCard(
-                        model: model,
-                        isSelected: appModel.selectedModel == model,
-                        isCached: FileManager.default.fileExists(atPath: model.localURL.path)
-                    ) {
-                        appModel.updateSelectedModel(model)
+                HStack(alignment: .top, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        installedModelsSection
+                        downloadMoreSection
                     }
+
+                    ModelStorageCard(appModel: appModel)
+                        .frame(width: 280, alignment: .top)
+                }
+
+                VStack(alignment: .leading, spacing: 18) {
+                    ModelStorageCard(appModel: appModel)
+                    installedModelsSection
+                    downloadMoreSection
                 }
             }
-
-            HStack {
-                Button("Download Selected Model") {
-                    Task {
-                        await appModel.prepareModelIfNeeded()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button("Reveal Cached Model") {
-                    appModel.revealModelInFinder()
-                }
-                .disabled(!appModel.modelIsAvailable)
-
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                LabeledContent("Model cached") {
-                    Text(appModel.modelIsAvailable ? "Yes" : "No")
-                }
-                LabeledContent("Approximate size") {
-                    Text(appModel.selectedModel.approximateSize)
-                        .foregroundStyle(.secondary)
-                }
-                LabeledContent("Model path") {
-                    Text(appModel.modelPath.isEmpty ? "Not downloaded yet" : appModel.modelPath)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-            .padding(20)
-            .panelBackground()
         }
+    }
+
+    private var installedModelsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(
+                title: "Installed Models",
+                subtitle: "Choose the model Wisp uses by default."
+            )
+
+            if appModel.installedModels.isEmpty {
+                EmptyStateBanner(
+                    title: "No models downloaded yet",
+                    subtitle: "Download a model below to start local dictation. `base.en` is the best place to start on most Macs."
+                )
+            } else {
+                LazyVGrid(columns: cardColumns, spacing: 16) {
+                    ForEach(appModel.installedModels) { model in
+                        InstalledModelCard(
+                            model: model,
+                            isDefault: appModel.selectedModel == model
+                        ) {
+                            appModel.updateSelectedModel(model)
+                        } onReveal: {
+                            appModel.revealModelInFinder(model)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .panelBackground()
+    }
+
+    private var downloadMoreSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(
+                title: "Download More",
+                subtitle: "Install another model when you need higher accuracy or different speed tradeoffs."
+            )
+
+            if appModel.downloadableModels.isEmpty {
+                EmptyStateBanner(
+                    title: "Everything is already installed",
+                    subtitle: "You’ve downloaded every model Wisp currently offers in this build."
+                )
+            } else {
+                LazyVGrid(columns: cardColumns, spacing: 16) {
+                    ForEach(appModel.downloadableModels) { model in
+                        DownloadableModelCard(
+                            model: model,
+                            isRecommended: model == .baseEnglish
+                        ) {
+                            Task {
+                                await appModel.downloadModel(model)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .panelBackground(prominent: false)
     }
 }
 
@@ -891,23 +885,6 @@ private struct PermissionsView: View {
         } secondaryAction: {
             appModel.openAccessibilitySettings()
         }
-    }
-}
-
-private extension ModelsView {
-    @ViewBuilder
-    var modelHighlights: some View {
-        HighlightPanel(
-            title: "Bundled runtime",
-            subtitle: "Another Mac does not need a separate Whisper install. Wisp carries the engine and manages the model cache itself.",
-            symbolName: "shippingbox.fill"
-        )
-
-        HighlightPanel(
-            title: "Current default",
-            subtitle: "\(appModel.selectedModel.displayName) is tuned for \(appModel.selectedModel.recommendedLabel) local dictation.",
-            symbolName: "cpu.fill"
-        )
     }
 }
 
@@ -1205,52 +1182,6 @@ private struct SidebarButton: View {
     }
 }
 
-private struct SidebarActionRow: View {
-    let title: String
-    let subtitle: String
-    let symbolName: String
-    let action: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: symbolName)
-                    .frame(width: 18)
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(WispPalette.ink)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(WispPalette.muted)
-                }
-
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(WispPalette.subtlePanelTop, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isHovered ? WispPalette.panelStroke.opacity(1.2) : .clear, lineWidth: 1)
-            )
-            .shadow(color: isHovered ? WispPalette.shadow.opacity(0.45) : .clear, radius: 14, x: 0, y: 8)
-            .scaleEffect(isHovered ? 1.01 : 1)
-        }
-        .frame(maxWidth: .infinity)
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.84)) {
-                isHovered = hovering
-            }
-        }
-    }
-}
-
 private struct PermissionRow: View {
     let title: String
     let value: String
@@ -1463,79 +1394,279 @@ private struct DockButton: View {
     }
 }
 
-private struct ModelOptionCard: View {
+private struct InstalledModelCard: View {
     let model: LocalModel
-    let isSelected: Bool
-    let isCached: Bool
-    let action: () -> Void
+    let isDefault: Bool
+    let onSelectDefault: () -> Void
+    let onReveal: () -> Void
     @State private var isHovered = false
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(model.displayName)
-                            .font(.headline)
-                            .foregroundStyle(WispPalette.ink)
-                        Text(model.recommendedLabel.capitalized)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(WispPalette.muted)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: isCached ? "checkmark.circle.fill" : "circle.dashed")
-                        .foregroundStyle(isCached ? .green : .secondary)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.displayName)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(WispPalette.ink)
+                    Text(model.recommendedLabel.capitalized)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(WispPalette.muted)
                 }
 
-                Text(model.summary)
-                    .font(.subheadline)
-                    .foregroundStyle(WispPalette.muted)
-                    .lineLimit(3)
+                Spacer()
 
-                HStack {
-                    Text(model.approximateSize)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(WispPalette.muted)
-                    Spacer()
-                    Text(isCached ? "Cached" : "Downloadable")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(WispPalette.muted)
+                VStack(alignment: .trailing, spacing: 8) {
+                    if isDefault {
+                        ModelBadge(title: "Default", tone: .accent)
+                    }
+                    ModelBadge(title: "Downloaded", tone: .success)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 180, alignment: .leading)
-            .padding(18)
-            .background(
-                isSelected
-                    ? LinearGradient(
-                        colors: [
-                            WispPalette.accent.opacity(0.18),
-                            WispPalette.accentWash.opacity(0.22)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    : LinearGradient(
-                        colors: [WispPalette.panelTop, WispPalette.panelBottom],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(isSelected ? WispPalette.accent.opacity(0.45) : WispPalette.panelStroke, lineWidth: 1)
-            )
-            .scaleEffect(isHovered ? 1.01 : 1)
-            .shadow(color: isHovered ? WispPalette.shadow.opacity(0.55) : .clear, radius: 18, x: 0, y: 12)
+
+            Text(model.summary)
+                .font(.subheadline)
+                .foregroundStyle(WispPalette.muted)
+                .lineLimit(3)
+
+            HStack(spacing: 10) {
+                MetadataPill(title: model.approximateSize, symbolName: "internaldrive")
+                MetadataPill(title: "On this Mac", symbolName: "checkmark.circle")
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(alignment: .center, spacing: 12) {
+                if isDefault {
+                    Label("Default model", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(WispPalette.accent)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(WispPalette.accentSoft, in: Capsule())
+                } else {
+                    Button("Use by Default", action: onSelectDefault)
+                        .buttonStyle(.borderedProminent)
+                        .tint(WispPalette.accent)
+                }
+
+                Spacer()
+
+                ModelTextAction(title: "Show in Finder", systemImage: "arrow.up.right.square", action: onReveal)
+            }
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 228, alignment: .leading)
+        .padding(20)
+        .background(
+            LinearGradient(
+                colors: isDefault
+                    ? [
+                        WispPalette.accent.opacity(0.15),
+                        WispPalette.accentWash.opacity(0.20)
+                    ]
+                    : [
+                        WispPalette.panelTop,
+                        WispPalette.panelBottom
+                    ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(isDefault ? WispPalette.accent.opacity(0.45) : WispPalette.panelStroke, lineWidth: 1)
+        )
+        .shadow(color: isHovered ? WispPalette.shadow.opacity(0.55) : .clear, radius: 18, x: 0, y: 12)
+        .scaleEffect(isHovered ? 1.01 : 1)
         .onHover { hovering in
             withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
                 isHovered = hovering
             }
         }
+    }
+}
+
+private struct DownloadableModelCard: View {
+    let model: LocalModel
+    let isRecommended: Bool
+    let onDownload: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.displayName)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(WispPalette.ink)
+                    Text(model.recommendedLabel.capitalized)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(WispPalette.muted)
+                }
+
+                Spacer()
+
+                ModelBadge(
+                    title: isRecommended ? "Recommended" : "Available",
+                    tone: isRecommended ? .accent : .neutral
+                )
+            }
+
+            Text(model.summary)
+                .font(.subheadline)
+                .foregroundStyle(WispPalette.muted)
+                .lineLimit(3)
+
+            HStack(spacing: 10) {
+                MetadataPill(title: model.approximateSize, symbolName: "arrow.down.circle")
+                if isRecommended {
+                    MetadataPill(title: "Good default", symbolName: "sparkles")
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 12) {
+                Button("Download", action: onDownload)
+                    .buttonStyle(.bordered)
+
+                Spacer()
+
+                Text("Stored locally after download")
+                    .font(.subheadline)
+                    .foregroundStyle(WispPalette.muted)
+                    .multilineTextAlignment(.trailing)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 220, alignment: .leading)
+        .padding(20)
+        .background(
+            LinearGradient(
+                colors: [WispPalette.subtlePanelTop, WispPalette.subtlePanelBottom],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(WispPalette.panelStroke, lineWidth: 1)
+        )
+        .shadow(color: isHovered ? WispPalette.shadow.opacity(0.5) : .clear, radius: 18, x: 0, y: 12)
+        .scaleEffect(isHovered ? 1.01 : 1)
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+private struct ModelStorageCard: View {
+    @Bindable var appModel: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SectionHeader(
+                title: "Storage",
+                subtitle: "Downloaded models stay local to this Mac."
+            )
+
+            VStack(alignment: .leading, spacing: 12) {
+                ModelStorageRow(title: "Installed", value: appModel.installedModelCountText)
+                ModelStorageRow(title: "Space used", value: appModel.installedModelsStorageText)
+                ModelStorageRow(
+                    title: "Default",
+                    value: appModel.selectedModelIsInstalled ? appModel.selectedModel.displayName : "Not downloaded yet"
+                )
+            }
+
+            Text("Models live in Application Support/Wisp/Models so another Mac does not need a separate Whisper install.")
+                .font(.subheadline)
+                .foregroundStyle(WispPalette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Open Models Folder") {
+                appModel.openModelsFolder()
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(20)
+        .panelBackground()
+    }
+}
+
+private struct ModelStorageRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(WispPalette.muted)
+                .textCase(.uppercase)
+            Text(value)
+                .font(.headline)
+                .foregroundStyle(WispPalette.ink)
+        }
+    }
+}
+
+private struct ModelBadge: View {
+    enum Tone {
+        case accent
+        case success
+        case neutral
+    }
+
+    let title: String
+    let tone: Tone
+
+    var body: some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(backgroundColor, in: Capsule())
+    }
+
+    private var foregroundColor: Color {
+        switch tone {
+        case .accent:
+            return WispPalette.accent
+        case .success:
+            return Color.green
+        case .neutral:
+            return WispPalette.ink
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch tone {
+        case .accent:
+            return WispPalette.accentSoft
+        case .success:
+            return Color.green.opacity(0.14)
+        case .neutral:
+            return WispPalette.subtlePanelTop
+        }
+    }
+}
+
+private struct ModelTextAction: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.medium))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(WispPalette.muted)
     }
 }
 

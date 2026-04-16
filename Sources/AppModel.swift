@@ -231,6 +231,38 @@ final class AppModel {
             .count
     }
 
+    var installedModels: [LocalModel] {
+        LocalModel.allCases.filter { model in
+            isModelInstalled(model)
+        }
+    }
+
+    var downloadableModels: [LocalModel] {
+        LocalModel.allCases.filter { !isModelInstalled($0) }
+    }
+
+    var selectedModelIsInstalled: Bool {
+        isModelInstalled(selectedModel)
+    }
+
+    var installedModelCountText: String {
+        let count = installedModels.count
+        return count == 1 ? "1 installed" : "\(count) installed"
+    }
+
+    var installedModelsStorageText: String {
+        ByteCountFormatter.string(
+            fromByteCount: installedModels.reduce(into: Int64(0)) { total, model in
+                total += modelFileSize(for: model)
+            },
+            countStyle: .file
+        )
+    }
+
+    func isModelInstalled(_ model: LocalModel) -> Bool {
+        model.isUsableFile(at: model.localURL)
+    }
+
     func refreshEnvironment() {
         do {
             try AppPaths.ensureDirectories()
@@ -270,23 +302,33 @@ final class AppModel {
     }
 
     func prepareModelIfNeeded() async {
+        await downloadModel(selectedModel)
+    }
+
+    func downloadModel(_ model: LocalModel) async {
         workflowState = .preparing
         errorMessage = nil
-        statusMessage = "Checking the local model for \(selectedModel.displayName)…"
+        statusMessage = isModelInstalled(model)
+            ? "Checking \(model.displayName)…"
+            : "Downloading \(model.displayName)…"
 
         do {
-            let modelURL = try await modelDownloader.ensureModelAvailable(selectedModel)
+            let modelURL = try await modelDownloader.ensureModelAvailable(model)
             modelLogger.notice("Model ready at \(modelURL.path, privacy: .public)")
-            modelIsAvailable = true
-            modelPath = modelURL.path
-            statusMessage = "Model \(selectedModel.displayName) is ready."
+            if selectedModel == model {
+                modelIsAvailable = true
+                modelPath = modelURL.path
+            } else {
+                refreshEnvironment()
+            }
+            statusMessage = "\(model.displayName) is ready."
             if workflowState == .preparing {
                 workflowState = .idle
             }
         } catch {
             workflowState = .failed
             errorMessage = error.localizedDescription
-            statusMessage = "Model preparation failed."
+            statusMessage = "\(model.displayName) could not be downloaded."
         }
     }
 
@@ -387,7 +429,9 @@ final class AppModel {
         selectedModel = model
         latestTranscript = latestTranscript
         refreshEnvironment()
-        statusMessage = "Selected model: \(model.displayName)"
+        statusMessage = isModelInstalled(model)
+            ? "Default model: \(model.displayName)"
+            : "Default model set to \(model.displayName). Download it in Models to use it."
     }
 
     func updateThemePreference(_ preference: ThemePreference) {
@@ -523,9 +567,14 @@ final class AppModel {
         NSWorkspace.shared.open(AppPaths.transcriptsDirectory)
     }
 
-    func revealModelInFinder() {
-        guard modelIsAvailable else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([selectedModel.localURL])
+    func revealModelInFinder(_ model: LocalModel? = nil) {
+        let targetModel = model ?? selectedModel
+        guard isModelInstalled(targetModel) else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([targetModel.localURL])
+    }
+
+    func openModelsFolder() {
+        NSWorkspace.shared.open(AppPaths.modelsDirectory)
     }
 
     private func loadTranscriptHistoryFromDisk() {
@@ -563,7 +612,17 @@ final class AppModel {
             }
         } catch {
             errorMessage = error.localizedDescription
+            }
+    }
+
+    private func modelFileSize(for model: LocalModel) -> Int64 {
+        guard isModelInstalled(model),
+              let values = try? model.localURL.resourceValues(forKeys: [.fileSizeKey]),
+              let fileSize = values.fileSize else {
+            return 0
         }
+
+        return Int64(fileSize)
     }
 
     private func openSettingsURL(_ value: String) {

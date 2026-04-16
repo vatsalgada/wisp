@@ -44,17 +44,33 @@ struct MenuBarView: View {
             showMainWindow(selecting: .capture)
         }
 
-        Menu("\(appModel.selectedModel.displayName) (\(appModel.selectedModel.recommendedLabel))") {
-            ForEach(LocalModel.allCases) { model in
-                Button(model.displayName) {
-                    appModel.updateSelectedModel(model)
+        Menu(modelMenuTitle) {
+            if appModel.installedModels.isEmpty {
+                Text("No downloaded models yet")
+            } else {
+                ForEach(appModel.installedModels) { model in
+                    Button(model.displayName) {
+                        appModel.updateSelectedModel(model)
+                    }
                 }
+            }
+
+            Divider()
+
+            Button("Manage Models…") {
+                showMainWindow(selecting: .models)
             }
         }
 
-        Button("Prepare Model") {
-            Task {
-                await appModel.prepareModelIfNeeded()
+        if !appModel.selectedModelIsInstalled {
+            Button("Download Default Model") {
+                Task {
+                    await appModel.prepareModelIfNeeded()
+                }
+            }
+        } else {
+            Button("Show Default Model in Finder") {
+                appModel.revealModelInFinder()
             }
         }
 
@@ -82,6 +98,18 @@ struct MenuBarView: View {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q")
+    }
+
+    private var modelMenuTitle: String {
+        if appModel.selectedModelIsInstalled {
+            return "\(appModel.selectedModel.displayName) (default)"
+        }
+
+        if let firstInstalled = appModel.installedModels.first {
+            return "\(firstInstalled.displayName) available"
+        }
+
+        return "Models"
     }
 
     private func showMainWindow(selecting item: AppModel.SidebarItem) {
