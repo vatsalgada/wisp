@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var appModel: AppModel
-    private let chromeClearance: CGFloat = 86
+    private let chromeClearance: CGFloat = 150
 
     var body: some View {
         HSplitView {
