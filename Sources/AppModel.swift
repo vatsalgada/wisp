@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import Observation
 import OSLog
+import ServiceManagement
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -135,6 +136,8 @@ final class AppModel {
     var launchAtLogin = false {
         didSet {
             defaults.set(launchAtLogin, forKey: DefaultsKey.launchAtLogin.rawValue)
+            guard launchAtLogin != oldValue else { return }
+            syncLaunchAtLoginRegistration()
         }
     }
     var usePushToTalk = true {
@@ -167,6 +170,7 @@ final class AppModel {
     @ObservationIgnored private let runtime: any TranscriptionRuntime = WhisperRuntime()
     @ObservationIgnored private let textInsertion = TextInsertionService()
     @ObservationIgnored private let defaults = UserDefaults.standard
+    @ObservationIgnored private var isSyncingLaunchAtLoginRegistration = false
 
     private enum DefaultsKey: String {
         case selectedModel = "selectedModel"
@@ -180,7 +184,7 @@ final class AppModel {
            let model = LocalModel(rawValue: storedModel) {
             selectedModel = model
         }
-        launchAtLogin = defaults.bool(forKey: DefaultsKey.launchAtLogin.rawValue)
+        launchAtLogin = storedLaunchAtLoginPreference()
         if defaults.object(forKey: DefaultsKey.usePushToTalk.rawValue) != nil {
             usePushToTalk = defaults.bool(forKey: DefaultsKey.usePushToTalk.rawValue)
         }
@@ -248,6 +252,21 @@ final class AppModel {
         } else {
             await startDictation()
         }
+    }
+
+    func handleHotKeyPress() async {
+        if usePushToTalk {
+            if !isDictating {
+                await startDictation()
+            }
+        } else {
+            await toggleDictation()
+        }
+    }
+
+    func handleHotKeyRelease() async {
+        guard usePushToTalk, isDictating else { return }
+        await stopDictation()
     }
 
     func prepareModelIfNeeded() async {
@@ -550,5 +569,73 @@ final class AppModel {
     private func openSettingsURL(_ value: String) {
         guard let url = URL(string: value) else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    private func storedLaunchAtLoginPreference() -> Bool {
+        let savedPreference = defaults.bool(forKey: DefaultsKey.launchAtLogin.rawValue)
+
+        do {
+            let status = try launchAtLoginService().status
+            switch status {
+            case .enabled, .requiresApproval:
+                return true
+            case .notRegistered, .notFound:
+                return false
+            @unknown default:
+                return savedPreference
+            }
+        } catch {
+            return savedPreference
+        }
+    }
+
+    private func syncLaunchAtLoginRegistration() {
+        guard !isSyncingLaunchAtLoginRegistration else { return }
+        isSyncingLaunchAtLoginRegistration = true
+        defer { isSyncingLaunchAtLoginRegistration = false }
+
+        do {
+            let service = try launchAtLoginService()
+            switch service.status {
+            case .enabled where launchAtLogin:
+                statusMessage = "Launch at login is enabled."
+            case .enabled, .requiresApproval:
+                try service.unregister()
+                statusMessage = "Launch at login is disabled."
+            case .notRegistered, .notFound:
+                if launchAtLogin {
+                    try service.register()
+                    statusMessage = "Launch at login is enabled."
+                } else {
+                    statusMessage = "Launch at login is disabled."
+                }
+            @unknown default:
+                if launchAtLogin {
+                    try service.register()
+                    statusMessage = "Launch at login is enabled."
+                } else {
+                    try service.unregister()
+                    statusMessage = "Launch at login is disabled."
+                }
+            }
+        } catch {
+            defaults.set(!launchAtLogin, forKey: DefaultsKey.launchAtLogin.rawValue)
+            launchAtLogin = !launchAtLogin
+            workflowState = .failed
+            errorMessage = error.localizedDescription
+            statusMessage = "Launch at login could not be updated."
+        }
+    }
+
+    private func launchAtLoginService() throws -> SMAppService {
+        if #available(macOS 13.0, *) {
+            return .mainApp
+        }
+
+        throw NSError(
+            domain: "Wisp.LaunchAtLogin",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "Launch at login requires macOS 13 or newer."]
+        )
     }
 }

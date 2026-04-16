@@ -4,17 +4,22 @@ import Foundation
 final class GlobalHotKeyManager {
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
-    private var callback: (() -> Void)?
+    private var onPress: (() -> Void)?
+    private var onRelease: (() -> Void)?
 
-    func registerToggleHotKey(callback: @escaping () -> Void) {
+    func registerHotKey(onPress: @escaping () -> Void, onRelease: @escaping () -> Void) {
         unregister()
-        self.callback = callback
+        self.onPress = onPress
+        self.onRelease = onRelease
 
-        var eventSpec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        var eventSpecs = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
+        ]
         let status = InstallEventHandler(
             GetApplicationEventTarget(),
             { _, event, userData in
-                guard let userData else { return noErr }
+                guard let userData, let event else { return noErr }
                 let manager = Unmanaged<GlobalHotKeyManager>.fromOpaque(userData).takeUnretainedValue()
                 var hotKeyID = EventHotKeyID()
                 GetEventParameter(
@@ -28,12 +33,17 @@ final class GlobalHotKeyManager {
                 )
 
                 if hotKeyID.id == 1 {
-                    manager.callback?()
+                    let eventKind = GetEventKind(event)
+                    if eventKind == UInt32(kEventHotKeyPressed) {
+                        manager.onPress?()
+                    } else if eventKind == UInt32(kEventHotKeyReleased) {
+                        manager.onRelease?()
+                    }
                 }
                 return noErr
             },
-            1,
-            &eventSpec,
+            eventSpecs.count,
+            &eventSpecs,
             Unmanaged.passUnretained(self).toOpaque(),
             &eventHandler
         )
@@ -52,6 +62,9 @@ final class GlobalHotKeyManager {
     }
 
     func unregister() {
+        onPress = nil
+        onRelease = nil
+
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil

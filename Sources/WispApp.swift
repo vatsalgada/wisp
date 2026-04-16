@@ -15,9 +15,13 @@ struct WispApp: App {
                 .preferredColorScheme(appModel.themePreference.preferredColorScheme)
                 .onAppear {
                     appLogger.notice("Main window appeared")
-                    globalHotKeyManager.registerToggleHotKey {
+                    globalHotKeyManager.registerHotKey {
                         Task { @MainActor in
-                            await appModel.toggleDictation()
+                            await appModel.handleHotKeyPress()
+                        }
+                    } onRelease: {
+                        Task { @MainActor in
+                            await appModel.handleHotKeyRelease()
                         }
                     }
                 }

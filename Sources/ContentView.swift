@@ -3,25 +3,19 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var appModel: AppModel
-    private let chromeClearance: CGFloat = 150
+    private let pageTopPadding: CGFloat = 28
 
     var body: some View {
         HSplitView {
-            SidebarView(appModel: appModel, chromeClearance: chromeClearance)
+            SidebarView(appModel: appModel, pageTopPadding: pageTopPadding)
                 .frame(minWidth: 220, idealWidth: 248, maxWidth: 280)
+                .id(appModel.selectedSidebarItem ?? .capture)
 
             ZStack {
                 AppChromeBackground()
-
-                VStack(alignment: .leading, spacing: 0) {
-                    DetailHeader(appModel: appModel)
-                        .padding(.horizontal, 28)
-                        .padding(.top, chromeClearance)
-                        .padding(.bottom, 20)
-
-                    detailContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
+                detailContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .id(appModel.selectedSidebarItem ?? .capture)
             }
         }
         .tint(WispPalette.accent)
@@ -34,23 +28,43 @@ struct ContentView: View {
     private var detailContent: some View {
         switch appModel.selectedSidebarItem ?? .capture {
         case .capture:
-            DetailScrollView {
+            DetailScrollView(
+                appModel: appModel,
+                scrollIdentity: .capture,
+                topPadding: pageTopPadding
+            ) {
                 CaptureDashboard(appModel: appModel)
             }
         case .history:
-            DetailScrollView {
+            DetailScrollView(
+                appModel: appModel,
+                scrollIdentity: .history,
+                topPadding: pageTopPadding
+            ) {
                 HistoryView(appModel: appModel)
             }
         case .models:
-            DetailScrollView {
+            DetailScrollView(
+                appModel: appModel,
+                scrollIdentity: .models,
+                topPadding: pageTopPadding
+            ) {
                 ModelsView(appModel: appModel)
             }
         case .permissions:
-            DetailScrollView {
+            DetailScrollView(
+                appModel: appModel,
+                scrollIdentity: .permissions,
+                topPadding: pageTopPadding
+            ) {
                 PermissionsView(appModel: appModel)
             }
         case .settings:
-            DetailScrollView {
+            DetailScrollView(
+                appModel: appModel,
+                scrollIdentity: .settings,
+                topPadding: pageTopPadding
+            ) {
                 SettingsPageView(appModel: appModel)
             }
         }
@@ -58,114 +72,165 @@ struct ContentView: View {
 }
 
 private struct DetailScrollView<Content: View>: View {
+    private let topAnchor = "detail-scroll-top"
+    @Bindable var appModel: AppModel
+    let scrollIdentity: AppModel.SidebarItem
+    let topPadding: CGFloat
     @ViewBuilder let content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(
+        appModel: AppModel,
+        scrollIdentity: AppModel.SidebarItem,
+        topPadding: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.appModel = appModel
+        self.scrollIdentity = scrollIdentity
+        self.topPadding = topPadding
         self.content = content()
     }
 
     var body: some View {
-        ScrollView {
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollViewReader { proxy in
+            ScrollView {
+                Color.clear
+                    .frame(height: 1)
+                    .id(topAnchor)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    DetailHeader(appModel: appModel)
+                        .padding(.bottom, 20)
+
+                    content
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 .padding(.horizontal, 28)
+                .padding(.top, topPadding)
                 .padding(.bottom, 28)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    proxy.scrollTo(topAnchor, anchor: .top)
+                }
+            }
+            .onChange(of: scrollIdentity) { _, _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    proxy.scrollTo(topAnchor, anchor: .top)
+                }
+            }
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
 private struct SidebarView: View {
+    private let topAnchor = "sidebar-scroll-top"
     @Bindable var appModel: AppModel
-    let chromeClearance: CGFloat
+    let pageTopPadding: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             sidebarHeader
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        SidebarSectionTitle("Workspace")
+            VStack(alignment: .leading, spacing: 8) {
+                SidebarSectionTitle("Workspace")
 
-                        ForEach(AppModel.SidebarItem.allCases) { item in
-                            SidebarButton(
-                                title: item.title,
-                                symbolName: item.symbolName,
-                                isSelected: appModel.selectedSidebarItem == item
-                            ) {
-                                appModel.selectedSidebarItem = item
-                            }
-                        }
+                ForEach(AppModel.SidebarItem.allCases) { item in
+                    SidebarButton(
+                        title: item.title,
+                        symbolName: item.symbolName,
+                        isSelected: appModel.selectedSidebarItem == item
+                    ) {
+                        appModel.selectedSidebarItem = item
                     }
+                }
+            }
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        SidebarSectionTitle("Quick Actions")
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Color.clear
+                        .frame(height: 1)
+                        .id(topAnchor)
 
-                        SidebarActionRow(
-                            title: "Prepare model",
-                            subtitle: appModel.modelIsAvailable ? "Cached and ready offline" : "Download for offline use",
-                            symbolName: "arrow.down.circle"
-                        ) {
-                            Task {
-                                await appModel.prepareModelIfNeeded()
-                            }
-                        }
-
-                        SidebarActionRow(
-                            title: "Transcribe a file",
-                            subtitle: "Import audio from disk",
-                            symbolName: "waveform.and.magnifyingglass"
-                        ) {
-                            Task {
-                                await appModel.transcribeFromOpenPanel()
-                            }
-                        }
-
-                        SidebarActionRow(
-                            title: "Open settings",
-                            subtitle: "Tune defaults and behavior",
-                            symbolName: "gearshape"
-                        ) {
-                            appModel.selectedSidebarItem = .settings
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        SidebarSectionTitle("Current model")
-
+                    VStack(alignment: .leading, spacing: 22) {
                         VStack(alignment: .leading, spacing: 10) {
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(appModel.selectedModel.displayName)
-                                        .font(.headline)
-                                        .foregroundStyle(WispPalette.ink)
-                                    Text(appModel.selectedModel.recommendedLabel.capitalized)
-                                        .font(.caption.weight(.semibold))
+                            SidebarSectionTitle("Quick Actions")
+
+                            SidebarActionRow(
+                                title: "Prepare model",
+                                subtitle: appModel.modelIsAvailable ? "Cached and ready offline" : "Download for offline use",
+                                symbolName: "arrow.down.circle"
+                            ) {
+                                Task {
+                                    await appModel.prepareModelIfNeeded()
+                                }
+                            }
+
+                            SidebarActionRow(
+                                title: "Transcribe a file",
+                                subtitle: "Import audio from disk",
+                                symbolName: "waveform.and.magnifyingglass"
+                            ) {
+                                Task {
+                                    await appModel.transcribeFromOpenPanel()
+                                }
+                            }
+
+                            SidebarActionRow(
+                                title: "Open settings",
+                                subtitle: "Tune defaults and behavior",
+                                symbolName: "gearshape"
+                            ) {
+                                appModel.selectedSidebarItem = .settings
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            SidebarSectionTitle("Current model")
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(alignment: .top) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(appModel.selectedModel.displayName)
+                                            .font(.headline)
+                                            .foregroundStyle(WispPalette.ink)
+                                        Text(appModel.selectedModel.recommendedLabel.capitalized)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(WispPalette.muted)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "cpu")
                                         .foregroundStyle(WispPalette.muted)
                                 }
-                                Spacer()
-                                Image(systemName: "cpu")
-                                    .foregroundStyle(WispPalette.muted)
-                            }
 
-                            Text(appModel.selectedModel.summary)
-                                .font(.caption)
-                                .foregroundStyle(WispPalette.muted)
-                                .lineLimit(3)
+                                Text(appModel.selectedModel.summary)
+                                    .font(.caption)
+                                    .foregroundStyle(WispPalette.muted)
+                                    .lineLimit(3)
+                            }
                         }
+                        .padding(15)
+                        .panelBackground(prominent: false)
                     }
-                    .padding(15)
-                    .panelBackground(prominent: false)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 20)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 20)
+                .scrollBounceBehavior(.basedOnSize)
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        proxy.scrollTo(topAnchor, anchor: .top)
+                    }
+                }
+                .onChange(of: appModel.selectedSidebarItem ?? .capture) { _, _ in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        proxy.scrollTo(topAnchor, anchor: .top)
+                    }
+                }
             }
-            .scrollBounceBehavior(.basedOnSize)
         }
         .padding(.horizontal, 20)
-        .padding(.top, chromeClearance)
+        .padding(.top, pageTopPadding)
         .padding(.bottom, 20)
         .background(SidebarBackground())
     }
@@ -267,6 +332,7 @@ private struct DetailHeader: View {
 
 private struct CaptureDashboard: View {
     @Bindable var appModel: AppModel
+    @FocusState private var transcriptEditorFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -440,14 +506,22 @@ private struct CaptureDashboard: View {
                 }
             }
 
-            TextEditor(text: $appModel.latestTranscript)
-                .font(.body)
-                .frame(minHeight: 320)
-                .padding(14)
-                .background(
-                    Color.white.opacity(0.97),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
+            if appModel.latestTranscript.isEmpty {
+                EmptyTranscriptPanel()
+            } else {
+                TextEditor(text: $appModel.latestTranscript)
+                    .focused($transcriptEditorFocused)
+                    .font(.body)
+                    .frame(minHeight: 320)
+                    .padding(14)
+                    .background(
+                        Color.white.opacity(0.97),
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    )
+                    .onAppear {
+                        transcriptEditorFocused = false
+                    }
+            }
 
             if appModel.latestTranscript.isEmpty {
                 EmptyStateBanner(
@@ -600,13 +674,15 @@ private struct HistoryView: View {
                     }
                 }
 
-                TextEditor(text: Binding(
-                    get: { selectedRecord.text },
-                    set: { _ in }
-                ))
-                .font(.body)
+                ScrollView {
+                    Text(selectedRecord.text)
+                        .font(.body)
+                        .foregroundStyle(Color.black.opacity(0.88))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .padding(14)
+                }
                 .frame(maxWidth: .infinity, minHeight: 360, alignment: .topLeading)
-                .padding(14)
                 .background(
                     Color.white.opacity(0.97),
                     in: RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -666,6 +742,25 @@ private struct HistoryView: View {
         Button("Open File") {
             appModel.openTranscriptFile(selectedRecord)
         }
+    }
+}
+
+private struct EmptyTranscriptPanel: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Transcript will appear here")
+                .font(.headline)
+                .foregroundStyle(WispPalette.ink)
+            Text("Start a recording or import audio to create editable transcript text.")
+                .font(.subheadline)
+                .foregroundStyle(WispPalette.muted)
+        }
+        .frame(maxWidth: .infinity, minHeight: 320, alignment: .topLeading)
+        .padding(18)
+        .background(
+            Color.white.opacity(0.97),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
     }
 }
 
