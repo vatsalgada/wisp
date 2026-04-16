@@ -60,3 +60,4 @@ The transcription layer should stay behind our own abstraction so we can change 
 - `Config/`: bundle metadata and app configuration
 - `script/`: local automation and developer entrypoints
 - `docs/`: project notes, status, and roadmap
+- `.codex/skills/wisp-native-app-review/`: project-local skill for relaunching Wisp, focusing the live app, capturing the actual Wisp window, resizing it for responsive checks, and reviewing the native UI from real screenshots
