@@ -80,6 +80,33 @@ struct MenuBarView: View {
 
         Divider()
 
+        Button("Copy Transcript") {
+            appModel.copyLatestTranscript()
+        }
+        .disabled(appModel.latestTranscript.isEmpty)
+
+        if appModel.clipboardClips.isEmpty {
+            Text("No saved clips")
+                .foregroundStyle(.secondary)
+        } else {
+            Divider()
+
+            Text("Latest clips")
+                .foregroundStyle(.secondary)
+
+            ForEach(Array(appModel.clipboardClips.prefix(5))) { clip in
+                Button(clipMenuTitle(for: clip)) {
+                    appModel.copyClipboardClip(clip)
+                }
+            }
+        }
+
+        Button("Manage Clipboard…") {
+            showMainWindow(selecting: .clipboard)
+        }
+
+        Divider()
+
         Text("Local sessions: \(appModel.transcriptHistory.count)")
             .foregroundStyle(.secondary)
 
@@ -88,11 +115,6 @@ struct MenuBarView: View {
 
         Text("Version 0.1.0")
             .foregroundStyle(.secondary)
-
-        Button("Copy Transcript") {
-            appModel.copyLatestTranscript()
-        }
-        .disabled(appModel.latestTranscript.isEmpty)
 
         Button("Quit") {
             NSApp.terminate(nil)
@@ -110,6 +132,19 @@ struct MenuBarView: View {
         }
 
         return "Models"
+    }
+
+    private func clipMenuTitle(for clip: AppModel.ClipboardClip) -> String {
+        let singleLine = clip.text
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let limit = 46
+
+        if singleLine.count > limit {
+            return "\(singleLine.prefix(limit))..."
+        }
+
+        return singleLine.isEmpty ? "Untitled clip" : singleLine
     }
 
     private func showMainWindow(selecting item: AppModel.SidebarItem) {

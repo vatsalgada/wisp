@@ -17,10 +17,18 @@ enum TextInsertionError: LocalizedError {
 
 @MainActor
 struct TextInsertionService {
+    var pasteboardChangeCount: Int {
+        NSPasteboard.general.changeCount
+    }
+
     func copyToPasteboard(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+    }
+
+    func readPasteboardString() -> String? {
+        NSPasteboard.general.string(forType: .string)
     }
 
     func insertFromPasteboard() throws {

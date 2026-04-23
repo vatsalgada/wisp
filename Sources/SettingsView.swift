@@ -99,6 +99,16 @@ private struct SettingsPageContent: View {
 
             Divider()
 
+            Toggle(isOn: $appModel.rememberCopiedText) {
+                SettingsToggleCopy(
+                    title: "Remember copied text",
+                    subtitle: "Opt in to saving the latest copied text snippets in Wisp’s local clipboard."
+                )
+            }
+            .toggleStyle(.switch)
+
+            Divider()
+
             Toggle(isOn: $appModel.launchAtLogin) {
                 SettingsToggleCopy(
                     title: "Launch at login",

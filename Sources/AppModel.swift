@@ -54,6 +54,7 @@ final class AppModel {
 
     enum SidebarItem: String, CaseIterable, Identifiable {
         case capture
+        case clipboard
         case history
         case models
         case permissions
@@ -65,6 +66,8 @@ final class AppModel {
             switch self {
             case .capture:
                 return "Capture"
+            case .clipboard:
+                return "Clipboard"
             case .history:
                 return "History"
             case .models:
@@ -80,6 +83,8 @@ final class AppModel {
             switch self {
             case .capture:
                 return "mic.fill"
+            case .clipboard:
+                return "doc.on.clipboard"
             case .history:
                 return "clock.arrow.circlepath"
             case .models:
@@ -126,6 +131,20 @@ final class AppModel {
         let transcriptFileURL: URL
     }
 
+    struct ClipboardClip: Identifiable, Codable, Equatable {
+        let id: UUID
+        let createdAt: Date
+        let text: String
+        let source: String
+
+        init(id: UUID = UUID(), createdAt: Date = Date(), text: String, source: String) {
+            self.id = id
+            self.createdAt = createdAt
+            self.text = text
+            self.source = source
+        }
+    }
+
     var selectedSidebarItem: SidebarItem? = .capture
     var selectedModel: LocalModel = .baseEnglish {
         didSet {
@@ -145,6 +164,16 @@ final class AppModel {
             defaults.set(usePushToTalk, forKey: DefaultsKey.usePushToTalk.rawValue)
         }
     }
+    var rememberCopiedText = false {
+        didSet {
+            defaults.set(rememberCopiedText, forKey: DefaultsKey.rememberCopiedText.rawValue)
+            if rememberCopiedText {
+                startPasteboardMonitoring()
+            } else {
+                stopPasteboardMonitoring()
+            }
+        }
+    }
     var themePreference: ThemePreference = .system {
         didSet {
             defaults.set(themePreference.rawValue, forKey: DefaultsKey.themePreference.rawValue)
@@ -158,6 +187,9 @@ final class AppModel {
     var transcriptHistory: [TranscriptRecord] = []
     var selectedTranscriptRecordID: TranscriptRecord.ID?
     var historySearchText = ""
+    var clipboardClips: [ClipboardClip] = []
+    var selectedClipboardClipID: ClipboardClip.ID?
+    var clipboardSearchText = ""
     var lastRecordingURL: URL?
     var lastTranscriptFileURL: URL?
     var microphonePermission: PermissionState = .notDetermined
@@ -169,13 +201,20 @@ final class AppModel {
     @ObservationIgnored private let modelDownloader = ModelDownloader()
     @ObservationIgnored private let runtime: any TranscriptionRuntime = WhisperRuntime()
     @ObservationIgnored private let textInsertion = TextInsertionService()
+    @ObservationIgnored private let mediaPlayback = MediaPlaybackCoordinator()
+    @ObservationIgnored private let dictationOverlay = DictationOverlayController()
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private var isSyncingLaunchAtLoginRegistration = false
+    @ObservationIgnored private var pasteboardMonitorTimer: Timer?
+    @ObservationIgnored private var lastObservedPasteboardChangeCount = NSPasteboard.general.changeCount
+    @ObservationIgnored private var insertAfterCurrentDictation = false
+    @ObservationIgnored private weak var insertionTargetApplication: NSRunningApplication?
 
     private enum DefaultsKey: String {
         case selectedModel = "selectedModel"
         case launchAtLogin = "launchAtLogin"
         case usePushToTalk = "usePushToTalk"
+        case rememberCopiedText = "rememberCopiedText"
         case themePreference = "themePreference"
     }
 
@@ -188,6 +227,9 @@ final class AppModel {
         if defaults.object(forKey: DefaultsKey.usePushToTalk.rawValue) != nil {
             usePushToTalk = defaults.bool(forKey: DefaultsKey.usePushToTalk.rawValue)
         }
+        if defaults.object(forKey: DefaultsKey.rememberCopiedText.rawValue) != nil {
+            rememberCopiedText = defaults.bool(forKey: DefaultsKey.rememberCopiedText.rawValue)
+        }
         if let storedTheme = defaults.string(forKey: DefaultsKey.themePreference.rawValue),
            let theme = ThemePreference(rawValue: storedTheme) {
             themePreference = theme
@@ -195,6 +237,10 @@ final class AppModel {
 
         refreshEnvironment()
         loadTranscriptHistoryFromDisk()
+        loadClipboardClipsFromDisk()
+        if rememberCopiedText {
+            startPasteboardMonitoring()
+        }
     }
 
     var isDictating: Bool {
@@ -222,6 +268,22 @@ final class AppModel {
         return transcriptHistory.filter { record in
             record.text.localizedCaseInsensitiveContains(query)
                 || record.transcriptFileURL.lastPathComponent.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var selectedClipboardClip: ClipboardClip? {
+        guard let selectedClipboardClipID else {
+            return clipboardClips.first
+        }
+        return clipboardClips.first(where: { $0.id == selectedClipboardClipID }) ?? clipboardClips.first
+    }
+
+    var filteredClipboardClips: [ClipboardClip] {
+        let query = clipboardSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return clipboardClips }
+        return clipboardClips.filter { clip in
+            clip.text.localizedCaseInsensitiveContains(query)
+                || clip.source.localizedCaseInsensitiveContains(query)
         }
     }
 
@@ -289,10 +351,14 @@ final class AppModel {
     func handleHotKeyPress() async {
         if usePushToTalk {
             if !isDictating {
-                await startDictation()
+                await startDictation(insertAfterTranscription: true)
             }
         } else {
-            await toggleDictation()
+            if isDictating {
+                await stopDictation()
+            } else {
+                await startDictation(insertAfterTranscription: true)
+            }
         }
     }
 
@@ -356,8 +422,10 @@ final class AppModel {
         openSettingsURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
     }
 
-    func startDictation() async {
+    func startDictation(insertAfterTranscription: Bool = false) async {
         guard canStartDictation else { return }
+        insertAfterCurrentDictation = insertAfterTranscription
+        insertionTargetApplication = insertAfterTranscription ? currentInsertionTargetApplication() : nil
 
         refreshEnvironment()
 
@@ -366,6 +434,7 @@ final class AppModel {
         }
 
         guard microphonePermission == .granted else {
+            insertAfterCurrentDictation = false
             workflowState = .failed
             errorMessage = "Microphone access is required before recording can begin."
             return
@@ -376,18 +445,25 @@ final class AppModel {
         }
 
         guard modelIsAvailable else {
+            insertAfterCurrentDictation = false
             workflowState = .failed
             return
         }
 
         do {
+            mediaPlayback.pauseForDictation()
+            dictationOverlay.showListening()
             let recordingURL = try recorder.startRecording()
             lastRecordingURL = recordingURL
             workflowState = .recording
             errorMessage = nil
-            statusMessage = "Recording to \(recordingURL.lastPathComponent)…"
+            statusMessage = insertAfterTranscription ? "Listening. Release the shortcut to insert." : "Recording to \(recordingURL.lastPathComponent)…"
             modelLogger.notice("Recording started at \(recordingURL.path, privacy: .public)")
         } catch {
+            dictationOverlay.hide()
+            mediaPlayback.resumePausedMedia()
+            insertAfterCurrentDictation = false
+            insertionTargetApplication = nil
             workflowState = .failed
             errorMessage = error.localizedDescription
             statusMessage = "Recording could not be started."
@@ -396,19 +472,33 @@ final class AppModel {
 
     func stopDictation() async {
         guard canStopDictation else { return }
+        let shouldInsert = insertAfterCurrentDictation
+        insertAfterCurrentDictation = false
+
         guard let recordingURL = recorder.stopRecording() else {
+            dictationOverlay.hide()
+            mediaPlayback.resumePausedMedia()
             workflowState = .failed
             errorMessage = "No recording file was available to transcribe."
             return
         }
 
-        await transcribeAudioFile(at: recordingURL, statusPrefix: "Transcribing recording")
+        dictationOverlay.showTranscribing()
+        let didTranscribe = await transcribeAudioFile(at: recordingURL, statusPrefix: "Transcribing recording")
+        if didTranscribe, shouldInsert {
+            await insertLatestTranscriptIntoTargetApplication()
+        } else {
+            dictationOverlay.hide()
+        }
+        mediaPlayback.resumePausedMedia()
+        insertionTargetApplication = nil
     }
 
     func copyLatestTranscript() {
         guard !latestTranscript.isEmpty else { return }
-        textInsertion.copyToPasteboard(latestTranscript)
-        statusMessage = "Transcript copied to the pasteboard."
+        copyTextToPasteboard(latestTranscript)
+        dictationOverlay.showCopied()
+        statusMessage = "Transcript copied."
     }
 
     func insertLatestTranscript() {
@@ -416,9 +506,38 @@ final class AppModel {
 
         do {
             textInsertion.copyToPasteboard(latestTranscript)
+            markPasteboardChangeAsHandled()
             try textInsertion.insertFromPasteboard()
+            dictationOverlay.showPasted()
             statusMessage = "Transcript pasted into the active app."
         } catch {
+            dictationOverlay.hide()
+            workflowState = .failed
+            errorMessage = error.localizedDescription
+            statusMessage = "Insertion could not be completed."
+        }
+    }
+
+    private func insertLatestTranscriptIntoTargetApplication() async {
+        guard !latestTranscript.isEmpty else {
+            dictationOverlay.hide()
+            return
+        }
+
+        do {
+            textInsertion.copyToPasteboard(latestTranscript)
+            markPasteboardChangeAsHandled()
+
+            if let insertionTargetApplication {
+                insertionTargetApplication.activate()
+                try? await Task.sleep(for: .milliseconds(220))
+            }
+
+            try textInsertion.insertFromPasteboard()
+            dictationOverlay.showPasted()
+            statusMessage = "Transcript pasted into the active app."
+        } catch {
+            dictationOverlay.hide()
             workflowState = .failed
             errorMessage = error.localizedDescription
             statusMessage = "Insertion could not be completed."
@@ -453,14 +572,15 @@ final class AppModel {
         await transcribeAudioFile(at: url, statusPrefix: "Transcribing file")
     }
 
-    private func transcribeAudioFile(at audioURL: URL, statusPrefix: String) async {
+    @discardableResult
+    private func transcribeAudioFile(at audioURL: URL, statusPrefix: String) async -> Bool {
         if !modelIsAvailable {
             await prepareModelIfNeeded()
         }
 
         guard modelIsAvailable else {
             workflowState = .failed
-            return
+            return false
         }
 
         lastRecordingURL = audioURL
@@ -475,6 +595,18 @@ final class AppModel {
                 model: selectedModel,
                 transcriptFileURL: transcriptOutputURL
             )
+
+            guard isUsefulTranscript(result.text) else {
+                try? FileManager.default.removeItem(at: result.transcriptFileURL)
+                workflowState = .ready
+                errorMessage = nil
+                latestTranscript = ""
+                lastTranscriptFileURL = nil
+                statusMessage = "No speech detected."
+                modelLogger.notice("Transcription produced no speech")
+                return false
+            }
+
             latestTranscript = result.text
             lastTranscriptFileURL = result.transcriptFileURL
             transcriptHistory.insert(
@@ -491,10 +623,12 @@ final class AppModel {
             errorMessage = nil
             statusMessage = "Transcript ready."
             modelLogger.notice("Transcription completed")
+            return true
         } catch {
             workflowState = .failed
             errorMessage = error.localizedDescription
             statusMessage = "Transcription failed."
+            return false
         }
     }
 
@@ -504,7 +638,9 @@ final class AppModel {
         lastRecordingURL = record.audioFileURL
         lastTranscriptFileURL = record.transcriptFileURL
         selectedSidebarItem = .history
-        statusMessage = "Loaded transcript from \(record.createdAt.formatted(date: .abbreviated, time: .shortened))."
+        copyTextToPasteboard(record.text)
+        dictationOverlay.showCopied()
+        statusMessage = "Transcript copied."
     }
 
     func revealTranscriptInFinder(_ record: TranscriptRecord) {
@@ -516,16 +652,20 @@ final class AppModel {
     }
 
     func copyTranscript(_ record: TranscriptRecord) {
-        textInsertion.copyToPasteboard(record.text)
-        statusMessage = "Transcript copied to the pasteboard."
+        copyTextToPasteboard(record.text)
+        dictationOverlay.showCopied()
+        statusMessage = "Transcript copied."
     }
 
     func insertTranscript(_ record: TranscriptRecord) {
         do {
             textInsertion.copyToPasteboard(record.text)
+            markPasteboardChangeAsHandled()
             try textInsertion.insertFromPasteboard()
+            dictationOverlay.showPasted()
             statusMessage = "Transcript pasted into the active app."
         } catch {
+            dictationOverlay.hide()
             workflowState = .failed
             errorMessage = error.localizedDescription
             statusMessage = "Insertion could not be completed."
@@ -563,6 +703,52 @@ final class AppModel {
         }
     }
 
+    func selectClipboardClip(_ clip: ClipboardClip) {
+        selectedClipboardClipID = clip.id
+        selectedSidebarItem = .clipboard
+        statusMessage = "Selected clip from \(clip.createdAt.formatted(date: .abbreviated, time: .shortened))."
+    }
+
+    func copyClipboardClip(_ clip: ClipboardClip) {
+        textInsertion.copyToPasteboard(clip.text)
+        markPasteboardChangeAsHandled()
+        selectedClipboardClipID = clip.id
+        dictationOverlay.showCopied()
+        statusMessage = "Clip copied to the pasteboard."
+    }
+
+    func insertClipboardClip(_ clip: ClipboardClip) {
+        do {
+            textInsertion.copyToPasteboard(clip.text)
+            markPasteboardChangeAsHandled()
+            selectedClipboardClipID = clip.id
+            try textInsertion.insertFromPasteboard()
+            dictationOverlay.showPasted()
+            statusMessage = "Clip pasted into the active app."
+        } catch {
+            dictationOverlay.hide()
+            workflowState = .failed
+            errorMessage = error.localizedDescription
+            statusMessage = "Insertion could not be completed."
+        }
+    }
+
+    func deleteClipboardClip(_ clip: ClipboardClip) {
+        clipboardClips.removeAll { $0.id == clip.id }
+        if selectedClipboardClipID == clip.id {
+            selectedClipboardClipID = clipboardClips.first?.id
+        }
+        persistClipboardClips()
+        statusMessage = "Clip deleted."
+    }
+
+    func clearClipboardClips() {
+        clipboardClips.removeAll()
+        selectedClipboardClipID = nil
+        persistClipboardClips()
+        statusMessage = "Clipboard clips cleared."
+    }
+
     func revealTranscriptFolder() {
         NSWorkspace.shared.open(AppPaths.transcriptsDirectory)
     }
@@ -596,6 +782,10 @@ final class AppModel {
                 guard let text = try? String(contentsOf: url, encoding: .utf8) else {
                     return nil
                 }
+                guard isUsefulTranscript(text) else {
+                    try? FileManager.default.removeItem(at: url)
+                    return nil
+                }
 
                 let values = try? url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
                 let createdAt = values?.creationDate ?? values?.contentModificationDate ?? Date()
@@ -612,7 +802,136 @@ final class AppModel {
             }
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func copyTextToPasteboard(_ text: String) {
+        textInsertion.copyToPasteboard(text)
+        markPasteboardChangeAsHandled()
+    }
+
+    private func saveClipboardClip(text: String, source: String) {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty, isUsefulClipboardText(trimmedText) else { return }
+
+        clipboardClips.removeAll { $0.text == text }
+        let clip = ClipboardClip(text: text, source: source)
+        clipboardClips.insert(clip, at: 0)
+        if clipboardClips.count > 5 {
+            clipboardClips = Array(clipboardClips.prefix(5))
+        }
+        selectedClipboardClipID = clip.id
+        persistClipboardClips()
+    }
+
+    private func isUsefulTranscript(_ text: String) -> Bool {
+        let normalized = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalized.isEmpty else { return false }
+
+        let emptyMarkers: Set<String> = [
+            "[blank_audio]",
+            "[blank audio]",
+            "(blank_audio)",
+            "(blank audio)",
+            "blank_audio",
+            "blank audio"
+        ]
+        return !emptyMarkers.contains(normalized)
+    }
+
+    private func isUsefulClipboardText(_ text: String) -> Bool {
+        isUsefulTranscript(text)
+    }
+
+    private func isUserCopiedClip(_ clip: ClipboardClip) -> Bool {
+        guard isUsefulClipboardText(clip.text) else { return false }
+
+        let wispTranscriptSources = [
+            "Latest transcript",
+            "Inserted transcript",
+            "History transcript",
+            "System pasteboard"
+        ]
+        if wispTranscriptSources.contains(clip.source) {
+            return false
+        }
+
+        return !clip.source.hasPrefix("Transcript from ")
+    }
+
+    private func startPasteboardMonitoring() {
+        pasteboardMonitorTimer?.invalidate()
+        lastObservedPasteboardChangeCount = textInsertion.pasteboardChangeCount
+        pasteboardMonitorTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.captureExternalPasteboardChangeIfNeeded()
             }
+        }
+    }
+
+    private func stopPasteboardMonitoring() {
+        pasteboardMonitorTimer?.invalidate()
+        pasteboardMonitorTimer = nil
+        lastObservedPasteboardChangeCount = textInsertion.pasteboardChangeCount
+    }
+
+    private func captureExternalPasteboardChangeIfNeeded() {
+        guard rememberCopiedText else { return }
+
+        let changeCount = textInsertion.pasteboardChangeCount
+        guard changeCount != lastObservedPasteboardChangeCount else { return }
+
+        lastObservedPasteboardChangeCount = changeCount
+        guard let text = textInsertion.readPasteboardString(),
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
+        saveClipboardClip(text: text, source: "Copied on this Mac")
+    }
+
+    private func markPasteboardChangeAsHandled() {
+        lastObservedPasteboardChangeCount = textInsertion.pasteboardChangeCount
+    }
+
+    private func currentInsertionTargetApplication() -> NSRunningApplication? {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              app.bundleIdentifier != AppPaths.bundleIdentifier else {
+            return nil
+        }
+
+        return app
+    }
+
+    private func loadClipboardClipsFromDisk() {
+        do {
+            try AppPaths.ensureDirectories()
+            guard FileManager.default.fileExists(atPath: AppPaths.clipboardClipsURL.path) else {
+                return
+            }
+
+            let data = try Data(contentsOf: AppPaths.clipboardClipsURL)
+            let loadedClips = try JSONDecoder().decode([ClipboardClip].self, from: data)
+            clipboardClips = Array(loadedClips.filter { isUserCopiedClip($0) }.prefix(5))
+            selectedClipboardClipID = clipboardClips.first?.id
+            persistClipboardClips()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func persistClipboardClips() {
+        do {
+            try AppPaths.ensureDirectories()
+            let data = try JSONEncoder().encode(clipboardClips)
+            try data.write(to: AppPaths.clipboardClipsURL, options: .atomic)
+        } catch {
+            workflowState = .failed
+            errorMessage = error.localizedDescription
+            statusMessage = "Clipboard clips could not be saved."
+        }
     }
 
     private func modelFileSize(for model: LocalModel) -> Int64 {

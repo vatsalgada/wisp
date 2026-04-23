@@ -35,6 +35,14 @@ struct ContentView: View {
             ) {
                 CaptureDashboard(appModel: appModel)
             }
+        case .clipboard:
+            DetailScrollView(
+                appModel: appModel,
+                scrollIdentity: .clipboard,
+                topPadding: pageTopPadding
+            ) {
+                ClipboardView(appModel: appModel)
+            }
         case .history:
             DetailScrollView(
                 appModel: appModel,
@@ -238,10 +246,15 @@ private struct SidebarView: View {
             }
 
             HStack(spacing: 10) {
-                StatusDot(color: appModel.isDictating ? .red : .green)
-                Text(appModel.isDictating ? "Recording live" : "Ready for capture")
+                if appModel.isDictating {
+                    ListeningPulse()
+                } else {
+                    StatusDot(color: .green)
+                }
+
+                Text(appModel.isDictating ? "Listening" : "Ready for capture")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(WispPalette.muted)
+                    .foregroundStyle(appModel.isDictating ? WispPalette.ink : WispPalette.muted)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -286,6 +299,8 @@ private struct DetailHeader: View {
         switch appModel.selectedSidebarItem ?? .capture {
         case .capture:
             return "Bundled runtime, downloaded local models, and a workspace that feels native on macOS."
+        case .clipboard:
+            return "Keep reusable dictated snippets close, then copy or insert them when you need them."
         case .history:
             return "Browse recent transcripts, reload prior sessions, and move between saved dictation artifacts."
         case .models:
@@ -310,7 +325,7 @@ private struct CaptureDashboard: View {
                 StatusCard(title: "Workflow", value: appModel.workflowState.displayName, symbolName: "waveform")
                 StatusCard(title: "Model", value: appModel.selectedModel.displayName, symbolName: "cpu")
                 StatusCard(title: "Mic", value: appModel.microphonePermission.displayName, symbolName: "mic.fill")
-                StatusCard(title: "History", value: "\(appModel.transcriptHistory.count) local items", symbolName: "clock.arrow.circlepath")
+                StatusCard(title: "Clips", value: "\(appModel.clipboardClips.count) saved snippets", symbolName: "doc.on.clipboard")
             }
 
             ViewThatFits(in: .horizontal) {
@@ -546,6 +561,7 @@ private struct CaptureDashboard: View {
 
 private struct HistoryView: View {
     @Bindable var appModel: AppModel
+    @State private var copiedRecordID: AppModel.TranscriptRecord.ID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -612,9 +628,11 @@ private struct HistoryView: View {
                     ForEach(appModel.filteredTranscriptHistory) { record in
                         HistoryRow(
                             record: record,
-                            isSelected: appModel.selectedTranscriptRecordID == record.id
+                            isSelected: appModel.selectedTranscriptRecordID == record.id,
+                            isCopied: copiedRecordID == record.id
                         ) {
                             appModel.selectTranscript(record)
+                            showCopiedFeedback(for: record)
                         }
                     }
                 }
@@ -697,6 +715,7 @@ private struct HistoryView: View {
     private func historyActionButtons(for selectedRecord: AppModel.TranscriptRecord) -> some View {
         Button("Copy") {
             appModel.copyTranscript(selectedRecord)
+            showCopiedFeedback(for: selectedRecord)
         }
 
         Button("Insert") {
@@ -709,6 +728,180 @@ private struct HistoryView: View {
 
         Button("Open File") {
             appModel.openTranscriptFile(selectedRecord)
+        }
+    }
+
+    private func showCopiedFeedback(for record: AppModel.TranscriptRecord) {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
+            copiedRecordID = record.id
+        }
+
+        Task {
+            try? await Task.sleep(for: .seconds(1.3))
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.22)) {
+                    if copiedRecordID == record.id {
+                        copiedRecordID = nil
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ClipboardView: View {
+    @Bindable var appModel: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SectionHeader(
+                title: "Clipboard",
+                subtitle: "Save reusable snippets from Wisp or the current macOS pasteboard, then copy or insert them later."
+            )
+
+            clipboardToolbar
+
+            if appModel.clipboardClips.isEmpty {
+                EmptyStateBanner(
+                    title: "No clips saved yet",
+                    subtitle: "Copy a transcript, save the latest transcript, or capture the current pasteboard to build a local clipboard."
+                )
+                .panelBackground()
+            } else {
+                VStack(alignment: .leading, spacing: 14) {
+                    clipListPanel
+
+                    HStack {
+                        Spacer()
+                        Button(role: .destructive) {
+                            appModel.clearClipboardClips()
+                        } label: {
+                            Text("Clear Clipboard")
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var clipboardToolbar: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                HistorySearchField(text: $appModel.clipboardSearchText, placeholder: "Search clips")
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                HistorySearchField(text: $appModel.clipboardSearchText, placeholder: "Search clips")
+            }
+        }
+    }
+
+    private var clipListPanel: some View {
+        ScrollView {
+            if appModel.filteredClipboardClips.isEmpty {
+                EmptyStateBanner(
+                    title: "No matching clips",
+                    subtitle: "Try a different search term or clear the filter to see every saved clip."
+                )
+                .padding(.top, 2)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(appModel.filteredClipboardClips) { clip in
+                        ClipboardRow(
+                            clip: clip,
+                            isSelected: appModel.selectedClipboardClipID == clip.id,
+                            copyAction: {
+                                appModel.copyClipboardClip(clip)
+                            },
+                            insertAction: {
+                                appModel.insertClipboardClip(clip)
+                            },
+                            deleteAction: {
+                                appModel.deleteClipboardClip(clip)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxWidth: .infinity, minHeight: 320, alignment: .top)
+        .padding(10)
+        .panelBackground()
+    }
+}
+
+private struct ClipboardRow: View {
+    let clip: AppModel.ClipboardClip
+    let isSelected: Bool
+    let copyAction: () -> Void
+    let insertAction: () -> Void
+    let deleteAction: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(clip.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(WispPalette.muted)
+                    Spacer()
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "doc.on.clipboard")
+                        .foregroundStyle(isSelected ? .blue : .secondary)
+                }
+
+                Text(clip.source)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(WispPalette.muted)
+                    .lineLimit(1)
+
+                Text(clip.text)
+                    .foregroundStyle(WispPalette.ink)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: copyAction)
+
+            Button("Insert", action: insertAction)
+
+            Button(role: .destructive, action: deleteAction) {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(16)
+        .background(
+            isSelected
+                ? LinearGradient(
+                    colors: [
+                        WispPalette.accent.opacity(0.18),
+                        WispPalette.accentWash.opacity(0.18)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                : LinearGradient(
+                    colors: [WispPalette.panelTop, WispPalette.subtlePanelBottom],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(isSelected ? WispPalette.accent.opacity(0.34) : WispPalette.panelStroke, lineWidth: 1)
+        )
+        .shadow(color: isHovered ? WispPalette.shadow.opacity(0.65) : .clear, radius: 18, x: 0, y: 10)
+        .scaleEffect(isHovered ? 1.01 : 1)
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {
+                isHovered = hovering
+            }
         }
     }
 }
@@ -910,12 +1103,13 @@ private struct HeaderSearchField: View {
 
 private struct HistorySearchField: View {
     @Binding var text: String
+    var placeholder = "Search transcripts"
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField("Search transcripts", text: $text)
+            TextField(placeholder, text: $text)
                 .textFieldStyle(.plain)
         }
         .padding(.horizontal, 14)
@@ -1036,6 +1230,7 @@ private struct HighlightPanel: View {
 private struct HistoryRow: View {
     let record: AppModel.TranscriptRecord
     let isSelected: Bool
+    let isCopied: Bool
     let action: () -> Void
     @State private var isHovered = false
 
@@ -1047,8 +1242,15 @@ private struct HistoryRow: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(WispPalette.muted)
                     Spacer()
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "arrow.right.circle")
-                        .foregroundStyle(isSelected ? .blue : .secondary)
+                    if isCopied {
+                        Label("Copied", systemImage: "checkmark.circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.green)
+                            .transition(.scale.combined(with: .opacity))
+                    } else {
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "arrow.right.circle")
+                            .foregroundStyle(isSelected ? .blue : .secondary)
+                    }
                 }
 
                 Text(record.text)
@@ -1115,6 +1317,7 @@ private struct HeaderAccessoryGroup: View {
     var body: some View {
         HStack(spacing: 10) {
             HeaderSearchField()
+            HeaderPill(title: "\(appModel.clipboardClips.count) clips", symbolName: "doc.on.clipboard")
             HeaderPill(title: "\(appModel.transcriptHistory.count) sessions", symbolName: "clock.arrow.circlepath")
             HeaderPill(title: appModel.selectedModel.displayName, symbolName: "cpu")
             HeaderPill(title: appModel.hotkey, symbolName: "command")
@@ -1677,6 +1880,30 @@ private struct StatusDot: View {
         Circle()
             .fill(color)
             .frame(width: 8, height: 8)
+    }
+}
+
+private struct ListeningPulse: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(WispPalette.accent.opacity(0.28), lineWidth: 2)
+                .frame(width: 18, height: 18)
+                .scaleEffect(isAnimating ? 1.35 : 0.75)
+                .opacity(isAnimating ? 0.1 : 0.9)
+
+            Circle()
+                .fill(Color.red)
+                .frame(width: 8, height: 8)
+        }
+        .frame(width: 20, height: 20)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.86).repeatForever(autoreverses: false)) {
+                isAnimating = true
+            }
+        }
     }
 }
 

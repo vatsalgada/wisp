@@ -16,13 +16,21 @@ enum AppPaths {
         applicationSupportDirectory.appendingPathComponent("Transcripts", isDirectory: true)
     }
 
+    static var clipboardDirectory: URL {
+        applicationSupportDirectory.appendingPathComponent("Clipboard", isDirectory: true)
+    }
+
+    static var clipboardClipsURL: URL {
+        clipboardDirectory.appendingPathComponent("clips.json")
+    }
+
     static var modelsDirectory: URL {
         applicationSupportDirectory.appendingPathComponent("Models", isDirectory: true)
     }
 
     static func ensureDirectories() throws {
         let fm = FileManager.default
-        for url in [applicationSupportDirectory, recordingsDirectory, transcriptsDirectory, modelsDirectory] {
+        for url in [applicationSupportDirectory, recordingsDirectory, transcriptsDirectory, clipboardDirectory, modelsDirectory] {
             try fm.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
