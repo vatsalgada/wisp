@@ -411,7 +411,7 @@ final class AppModel {
 
     func requestAccessibilityAccess() {
         accessibilityTrusted = PermissionManager.isAccessibilityTrusted(prompt: true)
-        statusMessage = accessibilityTrusted ? "Accessibility access granted." : "Accessibility access is still required for text insertion."
+        statusMessage = accessibilityTrusted ? "Accessibility access granted." : "Accessibility access is still needed to paste."
     }
 
     func openMicrophoneSettings() {
@@ -515,7 +515,7 @@ final class AppModel {
             markPasteboardChangeAsHandled()
             try textInsertion.insertFromPasteboard()
             dictationOverlay.showPasted()
-            statusMessage = "Transcript pasted into the active app."
+            statusMessage = "Transcript pasted."
         } catch {
             dictationOverlay.hide()
             workflowState = .failed
@@ -541,7 +541,7 @@ final class AppModel {
 
             try textInsertion.insertFromPasteboard()
             dictationOverlay.showPasted()
-            statusMessage = "Transcript pasted into the active app."
+            statusMessage = "Transcript pasted."
         } catch {
             dictationOverlay.hide()
             workflowState = .failed
@@ -669,7 +669,7 @@ final class AppModel {
             markPasteboardChangeAsHandled()
             try textInsertion.insertFromPasteboard()
             dictationOverlay.showPasted()
-            statusMessage = "Transcript pasted into the active app."
+            statusMessage = "Transcript pasted."
         } catch {
             dictationOverlay.hide()
             workflowState = .failed
@@ -720,7 +720,7 @@ final class AppModel {
         markPasteboardChangeAsHandled()
         selectedClipboardClipID = clip.id
         dictationOverlay.showCopied()
-        statusMessage = "Clip copied to the pasteboard."
+        statusMessage = "Clip copied."
     }
 
     func insertClipboardClip(_ clip: ClipboardClip) {
@@ -730,7 +730,7 @@ final class AppModel {
             selectedClipboardClipID = clip.id
             try textInsertion.insertFromPasteboard()
             dictationOverlay.showPasted()
-            statusMessage = "Clip pasted into the active app."
+            statusMessage = "Clip pasted."
         } catch {
             dictationOverlay.hide()
             workflowState = .failed

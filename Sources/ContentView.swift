@@ -237,7 +237,7 @@ private struct SidebarView: View {
                     Text("Wisp")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(WispPalette.ink)
-                    Text("Local dictation studio")
+                    Text("Local dictation")
                         .font(.subheadline)
                         .foregroundStyle(WispPalette.muted)
                 }
@@ -300,15 +300,15 @@ private struct DetailHeader: View {
         case .capture:
             return "Record locally, keep clips close, and move on."
         case .clipboard:
-            return "Keep reusable dictated snippets close, then copy or insert them when you need them."
+            return "Keep useful clips close."
         case .history:
-            return "Browse recent transcripts, reload prior sessions, and move between saved dictation artifacts."
+            return "Browse, copy, and reopen past transcripts."
         case .models:
-            return "Choose a downloaded default model and install more only when you need them."
+            return "Pick the speed and accuracy you want."
         case .permissions:
-            return "Keep microphone and accessibility access healthy so recording and insertion stay reliable."
+            return "Make sure Wisp can record and paste."
         case .settings:
-            return "Choose appearance, launch behavior, and dictation defaults from a dedicated settings workspace."
+            return "Set defaults once, then stay out of the way."
         }
     }
 }
@@ -464,7 +464,7 @@ private struct CaptureDashboard: View {
             HStack(alignment: .top) {
                 SectionHeader(
                     title: "Latest",
-                    subtitle: "A compact preview of the newest capture."
+                    subtitle: "Newest capture."
                 )
                 Spacer()
                 Button("History") {
@@ -476,7 +476,7 @@ private struct CaptureDashboard: View {
             if appModel.latestTranscript.isEmpty {
                 EmptyStateBanner(
                     title: "Nothing yet",
-                    subtitle: "Press Start recording when you are ready."
+                    subtitle: "The mic is being dramatic."
                 )
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -639,13 +639,13 @@ private struct HistoryView: View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeader(
                 title: "History",
-                subtitle: "Local transcripts survive relaunches, so Wisp keeps building value outside the live recording flow."
+                subtitle: "Past transcripts, ready when you need them."
             )
 
             if appModel.transcriptHistory.isEmpty {
                 EmptyStateBanner(
                     title: "No transcripts yet",
-                    subtitle: "Record or transcribe a file to start building local history."
+                    subtitle: "Future-you is waiting for notes."
                 )
                 .panelBackground()
             } else {
@@ -672,7 +672,7 @@ private struct HistoryView: View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
                 HistorySearchField(text: $appModel.historySearchText)
-                Button("Open Folder") {
+                Button("Open folder") {
                     appModel.revealTranscriptFolder()
                 }
                 Spacer()
@@ -680,7 +680,7 @@ private struct HistoryView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 HistorySearchField(text: $appModel.historySearchText)
-                Button("Open Folder") {
+                Button("Open folder") {
                     appModel.revealTranscriptFolder()
                 }
             }
@@ -691,8 +691,8 @@ private struct HistoryView: View {
         ScrollView {
             if appModel.filteredTranscriptHistory.isEmpty {
                 EmptyStateBanner(
-                    title: "No matching transcripts",
-                    subtitle: "Try a different search term or clear the filter to see your full local history."
+                    title: "No matches",
+                    subtitle: "That phrase is hiding somewhere else."
                 )
                 .padding(.top, 2)
             } else {
@@ -750,7 +750,7 @@ private struct HistoryView: View {
                     Button(role: .destructive) {
                         appModel.deleteTranscript(selectedRecord)
                     } label: {
-                        Text("Delete Transcript")
+                        Text("Delete transcript")
                     }
                     Spacer()
                 }
@@ -766,7 +766,7 @@ private struct HistoryView: View {
             Text(selectedRecord.createdAt.formatted(date: .complete, time: .shortened))
                 .font(.headline)
                 .foregroundStyle(WispPalette.ink)
-            Text("Saved locally in your transcript archive")
+            Text("Saved locally")
                 .foregroundStyle(WispPalette.muted)
         }
     }
@@ -798,7 +798,7 @@ private struct HistoryView: View {
             appModel.revealTranscriptInFinder(selectedRecord)
         }
 
-        Button("Open File") {
+        Button("Open file") {
             appModel.openTranscriptFile(selectedRecord)
         }
     }
@@ -828,15 +828,15 @@ private struct ClipboardView: View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeader(
                 title: "Clipboard",
-                subtitle: "Save reusable snippets from Wisp or the current macOS pasteboard, then copy or insert them later."
+                subtitle: "Saved clips for later."
             )
 
             clipboardToolbar
 
             if appModel.clipboardClips.isEmpty {
                 EmptyStateBanner(
-                    title: "No clips saved yet",
-                    subtitle: "Copy a transcript, save the latest transcript, or capture the current pasteboard to build a local clipboard."
+                    title: "No clips saved",
+                    subtitle: "Future-you has no souvenirs."
                 )
                 .panelBackground()
             } else {
@@ -848,7 +848,7 @@ private struct ClipboardView: View {
                         Button(role: .destructive) {
                             appModel.clearClipboardClips()
                         } label: {
-                            Text("Clear Clipboard")
+                            Text("Clear clipboard")
                         }
                     }
                 }
@@ -874,8 +874,8 @@ private struct ClipboardView: View {
         ScrollView {
             if appModel.filteredClipboardClips.isEmpty {
                 EmptyStateBanner(
-                    title: "No matching clips",
-                    subtitle: "Try a different search term or clear the filter to see every saved clip."
+                    title: "No matches",
+                    subtitle: "That clip is on another adventure."
                 )
                 .padding(.top, 2)
             } else {
@@ -984,7 +984,7 @@ private struct EmptyTranscriptPanel: View {
             Text("Transcript will appear here")
                 .font(.headline)
                 .foregroundStyle(WispPalette.ink)
-            Text("Start a recording or import audio to create editable transcript text.")
+            Text("Start recording and Wisp will fill this in.")
                 .font(.subheadline)
                 .foregroundStyle(WispPalette.muted)
         }
@@ -1005,7 +1005,7 @@ private struct ModelsView: View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeader(
                 title: "Models",
-                subtitle: "Keep downloaded models organized on this Mac and install larger ones only when you want more accuracy."
+                subtitle: "Choose the local model that fits the job."
             )
 
             ViewThatFits(in: .horizontal) {
@@ -1031,14 +1031,14 @@ private struct ModelsView: View {
     private var installedModelsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
-                title: "Installed Models",
-                subtitle: "Choose the model Wisp uses by default."
+                title: "Installed models",
+                subtitle: "Ready to use."
             )
 
             if appModel.installedModels.isEmpty {
                 EmptyStateBanner(
                     title: "No models downloaded yet",
-                    subtitle: "Download a model below to start local dictation. `base.en` is the best place to start on most Macs."
+                    subtitle: "Start with base.en on most Macs."
                 )
             } else {
                 LazyVGrid(columns: cardColumns, spacing: 16) {
@@ -1062,14 +1062,14 @@ private struct ModelsView: View {
     private var downloadMoreSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
-                title: "Download More",
-                subtitle: "Install another model when you need higher accuracy or different speed tradeoffs."
+                title: "Download more",
+                subtitle: "More accuracy usually means more waiting."
             )
 
             if appModel.downloadableModels.isEmpty {
                 EmptyStateBanner(
                     title: "Everything is already installed",
-                    subtitle: "You’ve downloaded every model Wisp currently offers in this build."
+                    subtitle: "Nothing left to collect here."
                 )
             } else {
                 LazyVGrid(columns: cardColumns, spacing: 16) {
@@ -1098,7 +1098,7 @@ private struct PermissionsView: View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeader(
                 title: "Permissions",
-                subtitle: "A small amount of setup unlocks live capture and one-click insertion into the active app."
+                subtitle: "Microphone for recording. Accessibility for pasting."
             )
 
             ViewThatFits(in: .horizontal) {
@@ -1112,8 +1112,8 @@ private struct PermissionsView: View {
             }
 
             HighlightPanel(
-                title: "Permission health",
-                subtitle: "If a system prompt appears, grant access once and the app will remember it. The microphone-permission crash path has already been patched in this build.",
+                title: "Permission check",
+                subtitle: "If macOS asks, grant access once. Wisp will remember.",
                 symbolName: "checkmark.shield.fill"
             )
         }
@@ -1125,8 +1125,8 @@ private struct PermissionsView: View {
             title: "Microphone",
             value: appModel.microphonePermission.displayName,
             detail: appModel.microphonePermission.detailText,
-            actionTitle: "Request Microphone",
-            secondaryActionTitle: "Open Settings",
+            actionTitle: "Request microphone",
+            secondaryActionTitle: "Open settings",
             symbolName: "mic.fill"
         ) {
             Task {
@@ -1140,10 +1140,10 @@ private struct PermissionsView: View {
             title: "Accessibility",
             value: appModel.accessibilityTrusted ? "Granted" : "Required",
             detail: appModel.accessibilityTrusted
-                ? "Wisp can paste the latest transcript into the frontmost app when you choose Insert."
-                : "Turn this on to enable best-effort insertion into the active application.",
-            actionTitle: "Open Accessibility Prompt",
-            secondaryActionTitle: "System Settings",
+                ? "Wisp can paste when you choose Insert."
+                : "Enable this to let Wisp paste for you.",
+            actionTitle: "Open accessibility prompt",
+            secondaryActionTitle: "System settings",
             symbolName: "rectangle.on.rectangle"
         ) {
             appModel.requestAccessibilityAccess()
@@ -1158,7 +1158,7 @@ private struct HeaderSearchField: View {
         HStack(spacing: 10) {
             Image(systemName: "lock.fill")
                 .foregroundStyle(.secondary)
-            Text("Fully local workflow")
+            Text("Local on this Mac")
                 .foregroundStyle(WispPalette.muted)
         }
         .font(.subheadline.weight(.medium))
@@ -1844,7 +1844,7 @@ private struct ModelStorageCard: View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeader(
                 title: "Storage",
-                subtitle: "Downloaded models stay local to this Mac."
+                subtitle: "Models stored on this Mac."
             )
 
             VStack(alignment: .leading, spacing: 12) {
@@ -1856,12 +1856,12 @@ private struct ModelStorageCard: View {
                 )
             }
 
-            Text("Models live in Application Support/Wisp/Models so another Mac does not need a separate Whisper install.")
+            Text("Wisp keeps model files in Application Support.")
                 .font(.subheadline)
                 .foregroundStyle(WispPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("Open Models Folder") {
+            Button("Open models folder") {
                 appModel.openModelsFolder()
             }
             .buttonStyle(.bordered)
@@ -2018,7 +2018,7 @@ private struct HeroPanel: View {
         VStack(alignment: .leading, spacing: 18) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    HeroTag(title: "Bundled runtime")
+                    HeroTag(title: "On device")
                     HeroTag(title: "Local models")
                     HeroTag(title: "Menu bar ready")
                 }
@@ -2028,7 +2028,7 @@ private struct HeroPanel: View {
                 Text("Wisp")
                     .font(.system(size: 46, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                Text("Fast local dictation for macOS, shaped like a polished desktop workspace and powered entirely on-device.")
+                Text("Fast local dictation for macOS.")
                     .font(.title3.weight(.medium))
                     .foregroundStyle(.white.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
@@ -2050,7 +2050,7 @@ private struct HeroPanel: View {
     @ViewBuilder
     private var heroButtons: some View {
         HeroActionButton(
-            title: appModel.isDictating ? "Stop Recording" : "Start Recording",
+            title: appModel.isDictating ? "Stop recording" : "Start recording",
             prominent: true
         ) {
             Task {
@@ -2058,13 +2058,13 @@ private struct HeroPanel: View {
             }
         }
 
-        HeroActionButton(title: "Transcribe File…") {
+        HeroActionButton(title: "Transcribe file…") {
             Task {
                 await appModel.transcribeFromOpenPanel()
             }
         }
 
-        HeroActionButton(title: "Prepare Model") {
+        HeroActionButton(title: "Prepare model") {
             Task {
                 await appModel.prepareModelIfNeeded()
             }
@@ -2075,7 +2075,7 @@ private struct HeroPanel: View {
         VStack(alignment: .leading, spacing: 14) {
             HeroMetricCard(
                 title: appModel.workflowState.displayName,
-                subtitle: "Current workflow state",
+                subtitle: "Status",
                 symbolName: "sparkles"
             )
             HeroMetricCard(

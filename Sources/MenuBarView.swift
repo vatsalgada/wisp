@@ -6,10 +6,10 @@ struct MenuBarView: View {
     @Bindable var appModel: AppModel
 
     var body: some View {
-        Text(appModel.isDictating ? "Recording live" : "Ready for dictation")
+        Text(appModel.isDictating ? "Recording" : "Ready")
             .foregroundStyle(.secondary)
 
-        Button(appModel.isDictating ? "Stop Recording" : "Start Recording") {
+        Button(appModel.isDictating ? "Stop recording" : "Start recording") {
             Task {
                 if appModel.isDictating {
                     await appModel.stopDictation()
@@ -19,7 +19,7 @@ struct MenuBarView: View {
             }
         }
 
-        Button("Transcribe File…") {
+        Button("Transcribe file…") {
             Task {
                 await appModel.transcribeFromOpenPanel()
             }
@@ -40,7 +40,7 @@ struct MenuBarView: View {
 
         Divider()
 
-        Button("Show Main Window") {
+        Button("Show Wisp") {
             showMainWindow(selecting: .capture)
         }
 
@@ -57,30 +57,30 @@ struct MenuBarView: View {
 
             Divider()
 
-            Button("Manage Models…") {
+            Button("Manage models…") {
                 showMainWindow(selecting: .models)
             }
         }
 
         if !appModel.selectedModelIsInstalled {
-            Button("Download Default Model") {
+            Button("Download default model") {
                 Task {
                     await appModel.prepareModelIfNeeded()
                 }
             }
         } else {
-            Button("Show Default Model in Finder") {
+            Button("Show default model in Finder") {
                 appModel.revealModelInFinder()
             }
         }
 
-        Button("Open Transcript Folder") {
+        Button("Open transcript folder") {
             appModel.revealTranscriptFolder()
         }
 
         Divider()
 
-        Button("Copy Transcript") {
+        Button("Copy transcript") {
             appModel.copyLatestTranscript()
         }
         .disabled(appModel.latestTranscript.isEmpty)
@@ -101,13 +101,13 @@ struct MenuBarView: View {
             }
         }
 
-        Button("Manage Clipboard…") {
+        Button("Manage clipboard…") {
             showMainWindow(selecting: .clipboard)
         }
 
         Divider()
 
-        Text("Local sessions: \(appModel.transcriptHistory.count)")
+        Text("Sessions: \(appModel.transcriptHistory.count)")
             .foregroundStyle(.secondary)
 
         Text("Shortcut: \(appModel.hotkey)")
