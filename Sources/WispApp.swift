@@ -28,14 +28,14 @@ struct WispApp: App {
         }
         .commands {
             CommandGroup(after: .appInfo) {
-                Button("Start Dictation") {
+                Button("Start recording") {
                     Task {
                         await appModel.startDictation()
                     }
                 }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
 
-                Button("Stop Dictation") {
+                Button("Stop recording") {
                     Task {
                         await appModel.stopDictation()
                     }

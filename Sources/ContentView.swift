@@ -141,7 +141,7 @@ private struct SidebarView: View {
         VStack(alignment: .leading, spacing: 18) {
             sidebarHeader
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 SidebarSectionTitle("Workspace")
 
                 ForEach(AppModel.SidebarItem.allCases) { item in
@@ -226,10 +226,10 @@ private struct SidebarView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 46, height: 46)
+                        .frame(width: 42, height: 42)
 
                     Image(systemName: "waveform")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.white)
                 }
 
@@ -252,12 +252,12 @@ private struct SidebarView: View {
                     StatusDot(color: .green)
                 }
 
-                Text(appModel.isDictating ? "Listening" : "Ready for capture")
-                    .font(.subheadline.weight(.medium))
+                Text(appModel.isDictating ? "Listening" : "Ready")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(appModel.isDictating ? WispPalette.ink : WispPalette.muted)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
             .background(WispPalette.subtlePanelTop, in: Capsule())
         }
     }
@@ -1407,45 +1407,31 @@ private struct SidebarButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
+                Capsule()
+                    .fill(isSelected ? WispPalette.accent : Color.clear)
+                    .frame(width: 3, height: 20)
+
                 Image(systemName: symbolName)
                     .font(.system(size: 14, weight: .semibold))
                     .frame(width: 18)
+                    .foregroundStyle(isSelected ? WispPalette.accent : WispPalette.muted)
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(isSelected ? .white : WispPalette.ink)
+                    .foregroundStyle(WispPalette.ink)
                 Spacer()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                isSelected
-                    ? LinearGradient(
-                        colors: [
-                            WispPalette.accent,
-                            WispPalette.accentStrong
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    : LinearGradient(
-                        colors: [Color.clear, Color.clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ),
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .background(rowBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(
-                        isSelected ? Color.white.opacity(0.18) : Color.clear,
+                        isSelected ? WispPalette.accent.opacity(0.34) : Color.clear,
                         lineWidth: 1
                     )
             )
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .foregroundStyle(isSelected ? .white : .primary)
-            .shadow(color: isSelected || isHovered ? WispPalette.shadow.opacity(0.45) : .clear, radius: 16, x: 0, y: 10)
-            .scaleEffect(isHovered ? 1.01 : 1)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .frame(maxWidth: .infinity)
         .buttonStyle(.plain)
@@ -1454,6 +1440,13 @@ private struct SidebarButton: View {
                 isHovered = hovering
             }
         }
+    }
+
+    private var rowBackground: Color {
+        if isSelected {
+            return WispPalette.accentSoft
+        }
+        return isHovered ? WispPalette.subtlePanelTop : .clear
     }
 }
 
