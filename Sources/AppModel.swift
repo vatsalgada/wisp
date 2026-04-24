@@ -124,11 +124,25 @@ final class AppModel {
     }
 
     struct TranscriptRecord: Identifiable {
-        let id = UUID()
+        let id: UUID
         let createdAt: Date
-        let text: String
+        var text: String
         let audioFileURL: URL?
         let transcriptFileURL: URL
+
+        init(
+            id: UUID = UUID(),
+            createdAt: Date,
+            text: String,
+            audioFileURL: URL?,
+            transcriptFileURL: URL
+        ) {
+            self.id = id
+            self.createdAt = createdAt
+            self.text = text
+            self.audioFileURL = audioFileURL
+            self.transcriptFileURL = transcriptFileURL
+        }
     }
 
     struct ClipboardClip: Identifiable, Codable, Equatable {
@@ -507,6 +521,21 @@ final class AppModel {
         statusMessage = "Saved latest transcript to Clipboard."
     }
 
+    func copyTranscriptText(_ text: String) {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return }
+        copyTextToPasteboard(text)
+        dictationOverlay.showCopied()
+        statusMessage = "Transcript copied."
+    }
+
+    func saveTranscriptTextAsClip(_ text: String) {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return }
+        saveClipboardClip(text: text, source: "Saved from history")
+        statusMessage = "Saved transcript to Clipboard."
+    }
+
     func insertLatestTranscript() {
         guard !latestTranscript.isEmpty else { return }
 
@@ -644,9 +673,7 @@ final class AppModel {
         lastRecordingURL = record.audioFileURL
         lastTranscriptFileURL = record.transcriptFileURL
         selectedSidebarItem = .history
-        copyTextToPasteboard(record.text)
-        dictationOverlay.showCopied()
-        statusMessage = "Transcript copied."
+        statusMessage = "Transcript selected."
     }
 
     func revealTranscriptInFinder(_ record: TranscriptRecord) {
@@ -655,6 +682,44 @@ final class AppModel {
 
     func openTranscriptFile(_ record: TranscriptRecord) {
         NSWorkspace.shared.open(record.transcriptFileURL)
+    }
+
+    func openTranscriptRecording(_ record: TranscriptRecord) {
+        guard let audioFileURL = record.audioFileURL,
+              FileManager.default.fileExists(atPath: audioFileURL.path) else { return }
+        NSWorkspace.shared.open(audioFileURL)
+    }
+
+    @discardableResult
+    func saveTranscript(_ record: TranscriptRecord, text: String) -> Bool {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            workflowState = .failed
+            errorMessage = "Transcript text cannot be empty."
+            statusMessage = "Transcript was not saved."
+            return false
+        }
+
+        do {
+            try text.write(to: record.transcriptFileURL, atomically: true, encoding: .utf8)
+            guard let index = transcriptHistory.firstIndex(where: { $0.id == record.id }) else { return false }
+            transcriptHistory[index].text = text
+
+            if selectedTranscriptRecordID == record.id {
+                latestTranscript = text
+                lastTranscriptFileURL = record.transcriptFileURL
+                lastRecordingURL = record.audioFileURL
+            }
+
+            errorMessage = nil
+            statusMessage = "Transcript saved."
+            return true
+        } catch {
+            workflowState = .failed
+            errorMessage = error.localizedDescription
+            statusMessage = "Transcript could not be saved."
+            return false
+        }
     }
 
     func copyTranscript(_ record: TranscriptRecord) {
