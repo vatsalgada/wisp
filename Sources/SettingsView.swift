@@ -7,7 +7,7 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 SettingsPageContent(appModel: appModel, includeHeader: false, compactLayout: true)
-                    .padding(20)
+                    .padding(18)
             }
             .background(WispPalette.canvasTop.ignoresSafeArea())
             .navigationTitle("Settings")
@@ -30,7 +30,7 @@ private struct SettingsPageContent: View {
     let compactLayout: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 18) {
             if includeHeader {
                 SectionHeader(
                     title: "Preferences",
@@ -44,7 +44,7 @@ private struct SettingsPageContent: View {
                 HStack(alignment: .top, spacing: 18) {
                     behaviorPanel
                     modelPanel
-                        .frame(width: compactLayout ? 280 : 320, alignment: .leading)
+                        .frame(width: compactLayout ? 260 : 300, alignment: .leading)
                 }
 
                 VStack(alignment: .leading, spacing: 18) {
@@ -78,7 +78,7 @@ private struct SettingsPageContent: View {
                 .font(.subheadline)
                 .foregroundStyle(WispPalette.muted)
         }
-        .padding(20)
+        .padding(18)
         .panelBackground()
     }
 
@@ -125,7 +125,7 @@ private struct SettingsPageContent: View {
                 subtitle: "Start or stop recording from anywhere."
             )
         }
-        .padding(20)
+        .padding(18)
         .panelBackground()
     }
 
@@ -164,7 +164,7 @@ private struct SettingsPageContent: View {
                 }
             }
         }
-        .padding(20)
+        .padding(18)
         .panelBackground()
     }
 
@@ -205,7 +205,7 @@ private struct SettingsPageContent: View {
                 }
             }
         }
-        .padding(20)
+        .padding(18)
         .panelBackground(prominent: false)
     }
 
