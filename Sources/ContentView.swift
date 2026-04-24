@@ -3,12 +3,12 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var appModel: AppModel
-    private let pageTopPadding: CGFloat = 28
+    private let pageTopPadding: CGFloat = 18
 
     var body: some View {
         HSplitView {
             SidebarView(appModel: appModel, pageTopPadding: pageTopPadding)
-                .frame(minWidth: 220, idealWidth: 248, maxWidth: 280)
+                .frame(minWidth: 172, idealWidth: 188, maxWidth: 204)
                 .id(appModel.selectedSidebarItem ?? .capture)
 
             ZStack {
@@ -112,9 +112,9 @@ private struct DetailScrollView<Content: View>: View {
                     content
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, 28)
+                .padding(.horizontal, 20)
                 .padding(.top, topPadding)
-                .padding(.bottom, 28)
+                .padding(.bottom, 20)
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -133,18 +133,18 @@ private struct DetailScrollView<Content: View>: View {
 }
 
 private struct SidebarView: View {
-    private let topAnchor = "sidebar-scroll-top"
+    private let sidebarItems: [AppModel.SidebarItem] = [.capture, .history, .clipboard, .models, .settings]
     @Bindable var appModel: AppModel
     let pageTopPadding: CGFloat
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             sidebarHeader
 
             VStack(alignment: .leading, spacing: 8) {
                 SidebarSectionTitle("Workspace")
 
-                ForEach(AppModel.SidebarItem.allCases) { item in
+                ForEach(sidebarItems) { item in
                     SidebarButton(
                         title: item.title,
                         symbolName: item.symbolName,
@@ -155,67 +155,21 @@ private struct SidebarView: View {
                 }
             }
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    Color.clear
-                        .frame(height: 1)
-                        .id(topAnchor)
+            Spacer(minLength: 16)
 
-                    VStack(alignment: .leading, spacing: 22) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            SidebarSectionTitle("Current model")
-
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack(alignment: .top) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(appModel.selectedModel.displayName)
-                                            .font(.headline)
-                                            .foregroundStyle(WispPalette.ink)
-                                        Text(appModel.selectedModel.recommendedLabel.capitalized)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(WispPalette.muted)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "cpu")
-                                        .foregroundStyle(WispPalette.muted)
-                                }
-
-                                Text(appModel.selectedModel.summary)
-                                    .font(.caption)
-                                    .foregroundStyle(WispPalette.muted)
-                                    .lineLimit(3)
-                            }
-                        }
-                        .padding(15)
-                        .panelBackground(prominent: false)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 20)
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        proxy.scrollTo(topAnchor, anchor: .top)
-                    }
-                }
-                .onChange(of: appModel.selectedSidebarItem ?? .capture) { _, _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        proxy.scrollTo(topAnchor, anchor: .top)
-                    }
-                }
-            }
+            sidebarStatusCard
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 14)
         .padding(.top, pageTopPadding)
-        .padding(.bottom, 20)
+        .padding(.bottom, 16)
         .background(SidebarBackground())
     }
 
     private var sidebarHeader: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [
@@ -226,40 +180,47 @@ private struct SidebarView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 46, height: 46)
+                        .frame(width: 34, height: 34)
 
                     Image(systemName: "waveform")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Wisp")
-                        .font(.title3.weight(.semibold))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(WispPalette.ink)
-                    Text("Local dictation studio")
-                        .font(.subheadline)
+                    Text("Local dictation")
+                        .font(.caption)
                         .foregroundStyle(WispPalette.muted)
                 }
 
                 Spacer()
             }
 
-            HStack(spacing: 10) {
+        }
+    }
+
+    private var sidebarStatusCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
                 if appModel.isDictating {
                     ListeningPulse()
                 } else {
                     StatusDot(color: .green)
                 }
-
-                Text(appModel.isDictating ? "Listening" : "Ready for capture")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(appModel.isDictating ? WispPalette.ink : WispPalette.muted)
+                Text(appModel.isDictating ? "Listening" : "Ready")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(WispPalette.ink)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(WispPalette.subtlePanelTop, in: Capsule())
+            Text(appModel.isDictating ? "Recording locally" : "All set to record")
+                .font(.caption)
+                .foregroundStyle(WispPalette.muted)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .panelBackground(prominent: false)
     }
 }
 
@@ -267,6 +228,27 @@ private struct DetailHeader: View {
     @Bindable var appModel: AppModel
 
     var body: some View {
+        if appModel.selectedSidebarItem == .capture || appModel.selectedSidebarItem == nil {
+            captureHeader
+        } else {
+            defaultHeader
+        }
+    }
+
+    private var captureHeader: some View {
+        HStack(alignment: .center) {
+            Text("Capture")
+                .font(.largeTitle.weight(.semibold))
+                .foregroundStyle(WispPalette.ink)
+            Spacer()
+            HStack(spacing: 10) {
+                MiniHeaderButton(title: "⌘ K")
+                MiniHeaderButton(title: "•••")
+            }
+        }
+    }
+
+    private var defaultHeader: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 16) {
                 headerCopy
@@ -313,20 +295,40 @@ private struct DetailHeader: View {
     }
 }
 
+private struct MiniHeaderButton: View {
+    let title: String
+
+    var body: some View {
+        Button {} label: {
+            Text(title)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(WispPalette.muted)
+                .frame(minWidth: 42, minHeight: 34)
+                .padding(.horizontal, 4)
+                .background(WispPalette.subtlePanelTop.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(WispPalette.panelStroke, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(true)
+    }
+}
+
 private struct CaptureDashboard: View {
     @Bindable var appModel: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             captureConsole
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 18) {
+                HStack(alignment: .top, spacing: 16) {
                     latestTranscriptPanel
                     clipboardPanel
-                        .frame(width: 300)
                 }
 
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 16) {
                     latestTranscriptPanel
                     clipboardPanel
                 }
@@ -335,55 +337,29 @@ private struct CaptureDashboard: View {
     }
 
     private var captureConsole: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 20) {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 18) {
+                primaryCaptureButton
+                Divider()
+                    .frame(height: 58)
+                captureTimerBlock
+                waveformMeter
+                Divider()
+                    .frame(height: 58)
+                readinessCluster
+            }
+
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 20) {
                     primaryCaptureButton
-                    captureStatusBlock
-                    Spacer(minLength: 16)
-                    waveformMeter
+                    Spacer()
+                    captureTimerBlock
                 }
-
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack(alignment: .center, spacing: 16) {
-                        primaryCaptureButton
-                        captureStatusBlock
-                    }
-                    waveformMeter
-                }
-            }
-
-            HStack(spacing: 10) {
-                readinessPill(
-                    title: appModel.microphonePermission == .granted ? "Mic ready" : "Mic needs approval",
-                    symbolName: appModel.microphonePermission == .granted ? "mic.fill" : "mic.badge.xmark",
-                    isReady: appModel.microphonePermission == .granted
-                )
-                readinessPill(
-                    title: appModel.modelIsAvailable ? "\(appModel.selectedModel.displayName) ready" : "Model needed",
-                    symbolName: appModel.modelIsAvailable ? "cpu.fill" : "arrow.down.circle",
-                    isReady: appModel.modelIsAvailable
-                )
-                readinessPill(
-                    title: "\(appModel.clipboardClips.count) clips",
-                    symbolName: "doc.on.clipboard",
-                    isReady: !appModel.clipboardClips.isEmpty
-                )
-                Spacer()
-                Button("Settings") {
-                    appModel.selectedSidebarItem = .settings
-                }
-                .buttonStyle(.borderless)
-            }
-            .font(.caption.weight(.semibold))
-
-            if let errorMessage = appModel.errorMessage, !errorMessage.isEmpty {
-                Text(errorMessage)
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                waveformMeter
+                readinessCluster
             }
         }
-        .padding(18)
+        .padding(20)
         .panelBackground()
     }
 
@@ -393,90 +369,105 @@ private struct CaptureDashboard: View {
                 await performPrimaryCaptureAction()
             }
         } label: {
-            VStack(spacing: 10) {
+            HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(appModel.isDictating ? Color.red.opacity(0.92) : WispPalette.accent)
+                        .stroke(WispPalette.panelStroke, lineWidth: 1)
                         .frame(width: 56, height: 56)
-                    Image(systemName: appModel.isDictating ? "stop.fill" : "mic.fill")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
+                    Circle()
+                        .fill(appModel.isDictating ? Color.red.opacity(0.92) : WispPalette.accent)
+                        .frame(width: 22, height: 22)
                 }
 
-                Text(primaryCaptureTitle)
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(WispPalette.ink)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(primaryCaptureTitle)
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(WispPalette.ink)
+
+                    Label("Space", systemImage: "control")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(WispPalette.muted)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(WispPalette.subtlePanelTop.opacity(0.7), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(WispPalette.panelStroke, lineWidth: 1)
+                        )
+                }
             }
-            .frame(width: 118, height: 100)
-            .background(
-                WispPalette.subtlePanelTop,
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(WispPalette.panelStroke, lineWidth: 1)
-            )
         }
         .buttonStyle(.plain)
         .disabled(!appModel.canStartDictation && !appModel.canStopDictation)
     }
 
-    private var captureStatusBlock: some View {
+    private var captureTimerBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(appModel.isDictating ? "Listening" : "Capture")
-                .font(.title2.weight(.semibold))
+            Text(appModel.isDictating ? "00:01" : "00:00")
+                .font(.system(size: 28, weight: .medium, design: .rounded))
                 .foregroundStyle(WispPalette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
             Text(captureStatusText)
                 .font(.callout)
                 .foregroundStyle(WispPalette.muted)
-                .lineLimit(2)
-            HStack(spacing: 8) {
-                Text(appModel.workflowState.displayName)
-                Text("•")
-                Text("\(appModel.latestTranscriptWordCount) words")
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(WispPalette.muted)
         }
-        .frame(maxWidth: 320, alignment: .leading)
+        .frame(width: 108, alignment: .leading)
     }
 
     private var waveformMeter: some View {
-        HStack(alignment: .center, spacing: 5) {
-            ForEach(0..<18, id: \.self) { index in
+        HStack(alignment: .center, spacing: 4) {
+            ForEach(0..<26, id: \.self) { index in
                 Capsule()
-                    .fill(appModel.isDictating ? WispPalette.accent : WispPalette.muted.opacity(0.35))
-                    .frame(width: 6, height: waveformHeight(at: index))
+                    .fill(index == 12 ? WispPalette.accent : WispPalette.muted.opacity(appModel.isDictating ? 0.58 : 0.38))
+                    .frame(width: index == 12 ? 3 : 2, height: waveformHeight(at: index))
                     .animation(.easeInOut(duration: 0.28), value: appModel.isDictating)
             }
         }
-        .frame(width: 172, height: 68)
-        .padding(.horizontal, 14)
-        .background(WispPalette.subtlePanelTop, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(WispPalette.panelStroke, lineWidth: 1)
-        )
+        .frame(minWidth: 146, idealWidth: 168, maxWidth: 190, minHeight: 58)
+    }
+
+    private var readinessCluster: some View {
+        HStack(spacing: 20) {
+            readinessMetric(
+                title: "Mic",
+                symbolName: "mic",
+                isReady: appModel.microphonePermission == .granted
+            )
+            readinessMetric(
+                title: "Model",
+                symbolName: "cube.transparent",
+                isReady: appModel.modelIsAvailable
+            )
+            readinessMetric(
+                title: "Access",
+                symbolName: "lock.open",
+                isReady: appModel.microphonePermission == .granted
+            )
+        }
+        .frame(minWidth: 164, alignment: .trailing)
     }
 
     private var latestTranscriptPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                SectionHeader(
-                    title: "Latest",
-                    subtitle: "A compact preview of the newest capture."
-                )
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Latest")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(WispPalette.ink)
                 Spacer()
-                Button("History") {
-                    appModel.selectedSidebarItem = .history
-                }
-                .buttonStyle(.borderless)
+                Text("...")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(WispPalette.muted)
             }
+            .padding(.bottom, 18)
+
+            Divider()
 
             if appModel.latestTranscript.isEmpty {
-                EmptyStateBanner(
-                    title: "Nothing yet",
-                    subtitle: "Press Start recording when you are ready."
+                centeredEmptyState(
+                    symbolName: "waveform",
+                    title: "Nothing yet.",
+                    subtitle: "The mic is being dramatic."
                 )
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -497,37 +488,61 @@ private struct CaptureDashboard: View {
                         Spacer()
                     }
                 }
-                .padding(16)
-                .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.vertical, 18)
             }
+
+            Divider()
+
+            HStack {
+                Label("Auto-saves to History", systemImage: "clock")
+                    .font(.callout)
+                    .foregroundStyle(WispPalette.muted)
+                Spacer()
+                Button {
+                    appModel.selectedSidebarItem = .history
+                } label: {
+                    Label("View history", systemImage: "arrow.right")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(WispPalette.accent)
+            }
+            .padding(.top, 16)
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 332, alignment: .topLeading)
         .padding(18)
         .panelBackground()
     }
 
     private var clipboardPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
-                SectionHeader(
-                    title: "Clipboard",
-                    subtitle: "\(appModel.clipboardClips.count) saved clips"
-                )
+                Text("Clipboard")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(WispPalette.ink)
                 Spacer()
-                Button("Open") {
+                Button {
                     appModel.selectedSidebarItem = .clipboard
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.title3.weight(.light))
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .foregroundStyle(WispPalette.muted)
             }
+            .padding(.bottom, 18)
+
+            Divider()
 
             if appModel.clipboardClips.isEmpty {
-                EmptyStateBanner(
+                centeredEmptyState(
+                    symbolName: "doc.on.clipboard",
                     title: "No clips saved",
                     subtitle: "Future-you has no souvenirs."
                 )
             } else {
-                VStack(spacing: 10) {
-                    ForEach(Array(appModel.clipboardClips.prefix(3))) { clip in
+                VStack(spacing: 12) {
+                    ForEach(Array(appModel.clipboardClips.prefix(2))) { clip in
                         Button {
                             appModel.selectClipboardClip(clip)
                         } label: {
@@ -552,51 +567,75 @@ private struct CaptureDashboard: View {
                         .buttonStyle(.plain)
                     }
                 }
+                .padding(.vertical, 18)
             }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button {
+                    appModel.selectedSidebarItem = .clipboard
+                } label: {
+                    Label("View all clips", systemImage: "arrow.right")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(WispPalette.accent)
+            }
+            .padding(.top, 16)
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 332, alignment: .topLeading)
         .padding(18)
         .panelBackground()
     }
 
     private var primaryCaptureTitle: String {
         if appModel.isDictating {
-            return "Stop"
+            return "Stop recording"
         }
-        if appModel.microphonePermission == .notDetermined {
-            return "Allow mic"
-        }
-        if appModel.microphonePermission != .granted {
-            return "Open mic"
-        }
-        if !appModel.modelIsAvailable {
-            return "Prepare"
-        }
-        return "Start"
+        return "Start recording"
     }
 
     private var captureStatusText: String {
         if appModel.isDictating {
-            return "Listening locally on this Mac."
+            return "Listening"
         }
-        if appModel.microphonePermission != .granted {
-            return "Microphone permission is needed before recording."
-        }
-        if !appModel.modelIsAvailable {
-            return "Prepare the local model once before recording."
-        }
-        if appModel.latestTranscript.isEmpty {
-            return "Ready for a fresh dictation."
-        }
-        return "Latest transcript is ready."
+        return "Ready"
     }
 
-    private func readinessPill(title: String, symbolName: String, isReady: Bool) -> some View {
-        Label(title, systemImage: symbolName)
-            .foregroundStyle(isReady ? WispPalette.ink : WispPalette.muted)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(WispPalette.subtlePanelTop, in: Capsule())
+    private func readinessMetric(title: String, symbolName: String, isReady: Bool) -> some View {
+        VStack(spacing: 8) {
+            ZStack(alignment: .bottomTrailing) {
+                Image(systemName: symbolName)
+                    .font(.title2.weight(.light))
+                    .foregroundStyle(WispPalette.muted)
+                    .frame(width: 30, height: 30)
+                StatusDot(color: isReady ? .green : WispPalette.muted)
+                    .offset(x: 4, y: 0)
+            }
+            Text(title)
+                .font(.callout)
+                .foregroundStyle(WispPalette.muted)
+        }
+        .frame(minWidth: 46)
+    }
+
+    private func centeredEmptyState(symbolName: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: symbolName)
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(WispPalette.muted)
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.regular))
+                    .foregroundStyle(WispPalette.ink)
+                Text(subtitle)
+                    .font(.callout)
+                    .foregroundStyle(WispPalette.muted)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 196, alignment: .center)
     }
 
     private func waveformHeight(at index: Int) -> CGFloat {
@@ -1406,46 +1445,41 @@ private struct SidebarButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: symbolName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 18)
+            HStack(spacing: 14) {
+                ZStack {
+                    if isSelected {
+                        Circle()
+                            .stroke(WispPalette.accent, lineWidth: 2)
+                            .frame(width: 18, height: 18)
+                        Circle()
+                            .fill(WispPalette.accent)
+                            .frame(width: 8, height: 8)
+                    } else {
+                        Image(systemName: symbolName)
+                            .font(.system(size: 16, weight: .regular))
+                    }
+                }
+                .frame(width: 22, height: 22)
+                .foregroundStyle(isSelected ? WispPalette.accent : WispPalette.muted)
+
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(isSelected ? .white : WispPalette.ink)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(isSelected ? WispPalette.ink : WispPalette.muted)
                 Spacer()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                isSelected
-                    ? LinearGradient(
-                        colors: [
-                            WispPalette.accent,
-                            WispPalette.accentStrong
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    : LinearGradient(
-                        colors: [Color.clear, Color.clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ),
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(isSelected || isHovered ? WispPalette.subtlePanelTop.opacity(0.72) : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(
-                        isSelected ? Color.white.opacity(0.18) : Color.clear,
-                        lineWidth: 1
-                    )
+                HStack {
+                    Rectangle()
+                        .fill(isSelected ? WispPalette.accent : Color.clear)
+                        .frame(width: 2)
+                    Spacer()
+                }
             )
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .foregroundStyle(isSelected ? .white : .primary)
-            .shadow(color: isSelected || isHovered ? WispPalette.shadow.opacity(0.45) : .clear, radius: 16, x: 0, y: 10)
-            .scaleEffect(isHovered ? 1.01 : 1)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .frame(maxWidth: .infinity)
         .buttonStyle(.plain)
