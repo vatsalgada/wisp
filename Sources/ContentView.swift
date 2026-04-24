@@ -3,12 +3,12 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var appModel: AppModel
-    private let pageTopPadding: CGFloat = 28
+    private let pageTopPadding: CGFloat = 24
 
     var body: some View {
         HSplitView {
             SidebarView(appModel: appModel, pageTopPadding: pageTopPadding)
-                .frame(minWidth: 220, idealWidth: 248, maxWidth: 280)
+                .frame(minWidth: 208, idealWidth: 232, maxWidth: 260)
                 .id(appModel.selectedSidebarItem ?? .capture)
 
             ZStack {
@@ -107,14 +107,14 @@ private struct DetailScrollView<Content: View>: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     DetailHeader(appModel: appModel)
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 16)
 
                     content
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, 28)
+                .padding(.horizontal, 24)
                 .padding(.top, topPadding)
-                .padding(.bottom, 28)
+                .padding(.bottom, 24)
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -186,7 +186,7 @@ private struct SidebarView: View {
                                     .lineLimit(3)
                             }
                         }
-                        .padding(15)
+                        .padding(14)
                         .panelBackground(prominent: false)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -205,9 +205,9 @@ private struct SidebarView: View {
                 }
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 18)
         .padding(.top, pageTopPadding)
-        .padding(.bottom, 20)
+        .padding(.bottom, 18)
         .background(SidebarBackground())
     }
 
@@ -323,7 +323,7 @@ private struct CaptureDashboard: View {
                 HStack(alignment: .top, spacing: 18) {
                     latestTranscriptPanel
                     clipboardPanel
-                        .frame(width: 300)
+                        .frame(width: 280)
                 }
 
                 VStack(alignment: .leading, spacing: 18) {
@@ -383,7 +383,7 @@ private struct CaptureDashboard: View {
                     .foregroundStyle(.red)
             }
         }
-        .padding(18)
+        .padding(16)
         .panelBackground()
     }
 
@@ -407,7 +407,7 @@ private struct CaptureDashboard: View {
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(WispPalette.ink)
             }
-            .frame(width: 118, height: 100)
+            .frame(width: 112, height: 96)
             .background(
                 WispPalette.subtlePanelTop,
                 in: RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -450,8 +450,8 @@ private struct CaptureDashboard: View {
                     .animation(.easeInOut(duration: 0.28), value: appModel.isDictating)
             }
         }
-        .frame(width: 172, height: 68)
-        .padding(.horizontal, 14)
+        .frame(width: 164, height: 64)
+        .padding(.horizontal, 12)
         .background(WispPalette.subtlePanelTop, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -485,7 +485,7 @@ private struct CaptureDashboard: View {
                         .foregroundStyle(WispPalette.ink)
                         .lineLimit(8)
                         .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
 
                     HStack(spacing: 10) {
                         Button("Copy") {
@@ -497,12 +497,12 @@ private struct CaptureDashboard: View {
                         Spacer()
                     }
                 }
-                .padding(16)
+                .padding(14)
                 .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(18)
+        .padding(16)
         .panelBackground()
     }
 
@@ -555,7 +555,7 @@ private struct CaptureDashboard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(18)
+        .padding(16)
         .panelBackground()
     }
 
@@ -654,7 +654,7 @@ private struct HistoryView: View {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 18) {
                         historyListPanel
-                            .frame(width: 340)
+                            .frame(width: 304)
                         historyDetailPanel
                     }
 
@@ -711,7 +711,7 @@ private struct HistoryView: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(maxWidth: .infinity, minHeight: 320, maxHeight: 460, alignment: .top)
+        .frame(maxWidth: .infinity, minHeight: 260, maxHeight: 380, alignment: .top)
         .padding(10)
         .panelBackground()
     }
@@ -740,7 +740,7 @@ private struct HistoryView: View {
                         .textSelection(.enabled)
                         .padding(14)
                 }
-                .frame(maxWidth: .infinity, minHeight: 360, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: 280, alignment: .topLeading)
                 .background(
                     Color.white.opacity(0.97),
                     in: RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -756,7 +756,7 @@ private struct HistoryView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .panelBackground()
     }
@@ -899,7 +899,7 @@ private struct ClipboardView: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(maxWidth: .infinity, minHeight: 320, alignment: .top)
+        .frame(maxWidth: .infinity, minHeight: 260, alignment: .top)
         .padding(10)
         .panelBackground()
     }
@@ -988,8 +988,8 @@ private struct EmptyTranscriptPanel: View {
                 .font(.subheadline)
                 .foregroundStyle(WispPalette.muted)
         }
-        .frame(maxWidth: .infinity, minHeight: 320, alignment: .topLeading)
-        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: 260, alignment: .topLeading)
+        .padding(16)
         .background(
             Color.white.opacity(0.97),
             in: RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -1016,7 +1016,7 @@ private struct ModelsView: View {
                     }
 
                     ModelStorageCard(appModel: appModel)
-                        .frame(width: 280, alignment: .top)
+                        .frame(width: 260, alignment: .top)
                 }
 
                 VStack(alignment: .leading, spacing: 18) {
@@ -1055,7 +1055,7 @@ private struct ModelsView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(18)
         .panelBackground()
     }
 
@@ -1086,7 +1086,7 @@ private struct ModelsView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(18)
         .panelBackground(prominent: false)
     }
 }
@@ -1508,8 +1508,8 @@ private struct PermissionRow: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 220, alignment: .topLeading)
-        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
+        .padding(18)
         .panelBackground()
     }
 }
@@ -1722,8 +1722,8 @@ private struct InstalledModelCard: View {
                 ModelTextAction(title: "Show in Finder", systemImage: "arrow.up.right.square", action: onReveal)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 228, alignment: .leading)
-        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: 204, alignment: .leading)
+        .padding(18)
         .background(
             LinearGradient(
                 colors: isDefault
@@ -1738,14 +1738,13 @@ private struct InstalledModelCard: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(isDefault ? WispPalette.accent.opacity(0.45) : WispPalette.panelStroke, lineWidth: 1)
         )
-        .shadow(color: isHovered ? WispPalette.shadow.opacity(0.55) : .clear, radius: 18, x: 0, y: 12)
-        .scaleEffect(isHovered ? 1.01 : 1)
+        .shadow(color: isHovered ? WispPalette.shadow.opacity(0.35) : .clear, radius: 12, x: 0, y: 8)
         .onHover { hovering in
             withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
                 isHovered = hovering
@@ -1806,22 +1805,21 @@ private struct DownloadableModelCard: View {
                     .multilineTextAlignment(.trailing)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 220, alignment: .leading)
-        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: 196, alignment: .leading)
+        .padding(18)
         .background(
             LinearGradient(
                 colors: [WispPalette.subtlePanelTop, WispPalette.subtlePanelBottom],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(WispPalette.panelStroke, lineWidth: 1)
         )
-        .shadow(color: isHovered ? WispPalette.shadow.opacity(0.5) : .clear, radius: 18, x: 0, y: 12)
-        .scaleEffect(isHovered ? 1.01 : 1)
+        .shadow(color: isHovered ? WispPalette.shadow.opacity(0.35) : .clear, radius: 12, x: 0, y: 8)
         .onHover { hovering in
             withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
                 isHovered = hovering
@@ -1859,7 +1857,7 @@ private struct ModelStorageCard: View {
             }
             .buttonStyle(.bordered)
         }
-        .padding(20)
+        .padding(18)
         .panelBackground()
     }
 }
@@ -2237,13 +2235,13 @@ extension View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ),
-                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(WispPalette.panelStroke, lineWidth: 1)
             )
-            .shadow(color: WispPalette.shadow, radius: 18, x: 0, y: 12)
+            .shadow(color: WispPalette.shadow.opacity(0.82), radius: 14, x: 0, y: 9)
     }
 }
 
