@@ -298,7 +298,7 @@ private struct DetailHeader: View {
     private var headerSubtitle: String {
         switch appModel.selectedSidebarItem ?? .capture {
         case .capture:
-            return "Bundled runtime, downloaded local models, and a workspace that feels native on macOS."
+            return "Record locally, keep clips close, and move on."
         case .clipboard:
             return "Keep reusable dictated snippets close, then copy or insert them when you need them."
         case .history:
@@ -315,247 +315,319 @@ private struct DetailHeader: View {
 
 private struct CaptureDashboard: View {
     @Bindable var appModel: AppModel
-    @FocusState private var transcriptEditorFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HeroPanel(appModel: appModel)
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 16)], spacing: 16) {
-                StatusCard(title: "Workflow", value: appModel.workflowState.displayName, symbolName: "waveform")
-                StatusCard(title: "Model", value: appModel.selectedModel.displayName, symbolName: "cpu")
-                StatusCard(title: "Mic", value: appModel.microphonePermission.displayName, symbolName: "mic.fill")
-                StatusCard(title: "Clips", value: "\(appModel.clipboardClips.count) saved snippets", symbolName: "doc.on.clipboard")
-            }
-
+        VStack(alignment: .leading, spacing: 18) {
+            captureConsole
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: 18) {
-                    sessionStatusPanel
-                    controlsPanel
-                        .frame(width: 360, alignment: .leading)
+                    latestTranscriptPanel
+                    clipboardPanel
+                        .frame(width: 300)
                 }
 
                 VStack(alignment: .leading, spacing: 18) {
-                    sessionStatusPanel
-                    controlsPanel
+                    latestTranscriptPanel
+                    clipboardPanel
                 }
-            }
-            .padding(20)
-            .panelBackground()
-
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 18) {
-                    transcriptPanel
-                    artifactsPanel
-                        .frame(width: 320)
-                }
-
-                VStack(alignment: .leading, spacing: 18) {
-                    transcriptPanel
-                    artifactsPanel
-                }
-            }
-            .padding(20)
-            .panelBackground()
-
-            if !appModel.transcriptHistory.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        SectionHeader(
-                            title: "Recent transcripts",
-                            subtitle: "Jump back into your latest on-device sessions."
-                        )
-                        Spacer()
-                        Button("Open history") {
-                            appModel.selectedSidebarItem = .history
-                        }
-                    }
-
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
-                        ForEach(Array(appModel.transcriptHistory.prefix(4))) { record in
-                            Button {
-                                appModel.selectTranscript(record)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    HStack {
-                                    Text(record.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(WispPalette.muted)
-                                        Spacer()
-                                        Image(systemName: "arrow.up.right")
-                                            .foregroundStyle(WispPalette.muted)
-                                    }
-
-                                    Text(record.text)
-                                        .foregroundStyle(.primary)
-                                        .multilineTextAlignment(.leading)
-                                        .lineLimit(3)
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 124, alignment: .topLeading)
-                                .padding(16)
-                                .background(
-                                    Color.white.opacity(0.78),
-                                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                        .stroke(.white.opacity(0.58), lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .padding(20)
-                .panelBackground()
             }
         }
     }
 
-    private var sessionStatusPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(
-                title: "Session status",
-                subtitle: "Everything in this flow is designed to stay local and resilient across relaunches."
-            )
-
-            Text(appModel.statusMessage)
-                .font(.title3.weight(.medium))
-                .foregroundStyle(WispPalette.ink)
-
+    private var captureConsole: some View {
+        VStack(alignment: .leading, spacing: 16) {
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
-                    metadataPills
+                HStack(alignment: .center, spacing: 20) {
+                    primaryCaptureButton
+                    captureStatusBlock
+                    Spacer(minLength: 16)
+                    waveformMeter
                 }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    metadataPills
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(alignment: .center, spacing: 16) {
+                        primaryCaptureButton
+                        captureStatusBlock
+                    }
+                    waveformMeter
                 }
             }
+
+            HStack(spacing: 10) {
+                readinessPill(
+                    title: appModel.microphonePermission == .granted ? "Mic ready" : "Mic needs approval",
+                    symbolName: appModel.microphonePermission == .granted ? "mic.fill" : "mic.badge.xmark",
+                    isReady: appModel.microphonePermission == .granted
+                )
+                readinessPill(
+                    title: appModel.modelIsAvailable ? "\(appModel.selectedModel.displayName) ready" : "Model needed",
+                    symbolName: appModel.modelIsAvailable ? "cpu.fill" : "arrow.down.circle",
+                    isReady: appModel.modelIsAvailable
+                )
+                readinessPill(
+                    title: "\(appModel.clipboardClips.count) clips",
+                    symbolName: "doc.on.clipboard",
+                    isReady: !appModel.clipboardClips.isEmpty
+                )
+                Spacer()
+                Button("Settings") {
+                    appModel.selectedSidebarItem = .settings
+                }
+                .buttonStyle(.borderless)
+            }
+            .font(.caption.weight(.semibold))
 
             if let errorMessage = appModel.errorMessage, !errorMessage.isEmpty {
                 Text(errorMessage)
+                    .font(.callout)
                     .foregroundStyle(.red)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .panelBackground()
     }
 
-    @ViewBuilder
-    private var metadataPills: some View {
-        MetadataPill(
-            title: appModel.modelIsAvailable ? "Model ready" : "Model needed",
-            symbolName: appModel.modelIsAvailable ? "internaldrive.fill" : "arrow.down.circle"
-        )
-        MetadataPill(
-            title: appModel.accessibilityTrusted ? "Insert enabled" : "Insert setup needed",
-            symbolName: "rectangle.on.rectangle"
-        )
-        MetadataPill(
-            title: "\(appModel.latestTranscriptWordCount) words",
-            symbolName: "text.word.spacing"
-        )
-    }
-
-    private var controlsPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(
-                title: "Controls",
-                subtitle: "Record, import, refresh, and open preferences from one compact dock."
-            )
-            CommandDock(appModel: appModel)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var transcriptPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ViewThatFits(in: .horizontal) {
-                HStack {
-                    SectionHeader(
-                        title: "Transcript",
-                        subtitle: "Edit, copy, and insert the latest capture."
-                    )
-                    Spacer()
-                    transcriptActions
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionHeader(
-                        title: "Transcript",
-                        subtitle: "Edit, copy, and insert the latest capture."
-                    )
-                    transcriptActions
-                }
+    private var primaryCaptureButton: some View {
+        Button {
+            Task {
+                await performPrimaryCaptureAction()
             }
+        } label: {
+            VStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(appModel.isDictating ? Color.red.opacity(0.92) : WispPalette.accent)
+                        .frame(width: 56, height: 56)
+                    Image(systemName: appModel.isDictating ? "stop.fill" : "mic.fill")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.white)
+                }
 
-            if appModel.latestTranscript.isEmpty {
-                EmptyTranscriptPanel()
-            } else {
-                TextEditor(text: $appModel.latestTranscript)
-                    .focused($transcriptEditorFocused)
-                    .font(.body)
-                    .frame(minHeight: 320)
-                    .padding(14)
-                    .background(
-                        Color.white.opacity(0.97),
-                        in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    )
-                    .onAppear {
-                        transcriptEditorFocused = false
-                    }
+                Text(primaryCaptureTitle)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(WispPalette.ink)
+            }
+            .frame(width: 118, height: 100)
+            .background(
+                WispPalette.subtlePanelTop,
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(WispPalette.panelStroke, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!appModel.canStartDictation && !appModel.canStopDictation)
+    }
+
+    private var captureStatusBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(appModel.isDictating ? "Listening" : "Capture")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(WispPalette.ink)
+            Text(captureStatusText)
+                .font(.callout)
+                .foregroundStyle(WispPalette.muted)
+                .lineLimit(2)
+            HStack(spacing: 8) {
+                Text(appModel.workflowState.displayName)
+                Text("•")
+                Text("\(appModel.latestTranscriptWordCount) words")
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(WispPalette.muted)
+        }
+        .frame(maxWidth: 320, alignment: .leading)
+    }
+
+    private var waveformMeter: some View {
+        HStack(alignment: .center, spacing: 5) {
+            ForEach(0..<18, id: \.self) { index in
+                Capsule()
+                    .fill(appModel.isDictating ? WispPalette.accent : WispPalette.muted.opacity(0.35))
+                    .frame(width: 6, height: waveformHeight(at: index))
+                    .animation(.easeInOut(duration: 0.28), value: appModel.isDictating)
+            }
+        }
+        .frame(width: 172, height: 68)
+        .padding(.horizontal, 14)
+        .background(WispPalette.subtlePanelTop, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(WispPalette.panelStroke, lineWidth: 1)
+        )
+    }
+
+    private var latestTranscriptPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                SectionHeader(
+                    title: "Latest",
+                    subtitle: "A compact preview of the newest capture."
+                )
+                Spacer()
+                Button("History") {
+                    appModel.selectedSidebarItem = .history
+                }
+                .buttonStyle(.borderless)
             }
 
             if appModel.latestTranscript.isEmpty {
                 EmptyStateBanner(
-                    title: "Nothing captured yet",
-                    subtitle: "Start recording from here or the menu bar to populate this workspace."
+                    title: "Nothing yet",
+                    subtitle: "Press Start recording when you are ready."
                 )
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(appModel.latestTranscript)
+                        .font(.body)
+                        .foregroundStyle(WispPalette.ink)
+                        .lineLimit(8)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
 
-    private var transcriptActions: some View {
-        HStack(spacing: 10) {
-            Button("Copy") {
-                appModel.copyLatestTranscript()
-            }
-            .disabled(appModel.latestTranscript.isEmpty)
-
-            Button("Insert") {
-                appModel.insertLatestTranscript()
-            }
-            .disabled(appModel.latestTranscript.isEmpty)
-        }
-    }
-
-    private var artifactsPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(
-                title: "Artifacts",
-                subtitle: "Quick access to the files Wisp most recently created."
-            )
-
-            ArtifactCard(title: "Latest recording", url: appModel.lastRecordingURL)
-            ArtifactCard(title: "Latest transcript", url: appModel.lastTranscriptFileURL)
-
-            if let selectedRecord = appModel.selectedTranscriptRecord {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Selected history item")
-                        .font(.headline)
-                    Text(selectedRecord.createdAt.formatted(date: .abbreviated, time: .shortened))
-                        .foregroundStyle(WispPalette.muted)
-                    Text(selectedRecord.text)
-                        .font(.subheadline)
-                        .foregroundStyle(WispPalette.muted)
-                        .lineLimit(4)
+                    HStack(spacing: 10) {
+                        Button("Copy") {
+                            appModel.copyLatestTranscript()
+                        }
+                        Button("Save clip") {
+                            appModel.saveLatestTranscriptAsClip()
+                        }
+                        Spacer()
+                    }
                 }
-                .padding(18)
-                .panelBackground(prominent: false)
+                .padding(16)
+                .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(18)
+        .panelBackground()
+    }
+
+    private var clipboardPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                SectionHeader(
+                    title: "Clipboard",
+                    subtitle: "\(appModel.clipboardClips.count) saved clips"
+                )
+                Spacer()
+                Button("Open") {
+                    appModel.selectedSidebarItem = .clipboard
+                }
+                .buttonStyle(.borderless)
+            }
+
+            if appModel.clipboardClips.isEmpty {
+                EmptyStateBanner(
+                    title: "No clips saved",
+                    subtitle: "Future-you has no souvenirs."
+                )
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(appModel.clipboardClips.prefix(3))) { clip in
+                        Button {
+                            appModel.selectClipboardClip(clip)
+                        } label: {
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: "doc.on.clipboard")
+                                    .foregroundStyle(WispPalette.muted)
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(clip.text)
+                                        .font(.callout)
+                                        .foregroundStyle(WispPalette.ink)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                    Text(clip.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.caption)
+                                        .foregroundStyle(WispPalette.muted)
+                                }
+                                Spacer()
+                            }
+                            .padding(12)
+                            .background(WispPalette.subtlePanelTop, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(18)
+        .panelBackground()
+    }
+
+    private var primaryCaptureTitle: String {
+        if appModel.isDictating {
+            return "Stop"
+        }
+        if appModel.microphonePermission == .notDetermined {
+            return "Allow mic"
+        }
+        if appModel.microphonePermission != .granted {
+            return "Open mic"
+        }
+        if !appModel.modelIsAvailable {
+            return "Prepare"
+        }
+        return "Start"
+    }
+
+    private var captureStatusText: String {
+        if appModel.isDictating {
+            return "Listening locally on this Mac."
+        }
+        if appModel.microphonePermission != .granted {
+            return "Microphone permission is needed before recording."
+        }
+        if !appModel.modelIsAvailable {
+            return "Prepare the local model once before recording."
+        }
+        if appModel.latestTranscript.isEmpty {
+            return "Ready for a fresh dictation."
+        }
+        return "Latest transcript is ready."
+    }
+
+    private func readinessPill(title: String, symbolName: String, isReady: Bool) -> some View {
+        Label(title, systemImage: symbolName)
+            .foregroundStyle(isReady ? WispPalette.ink : WispPalette.muted)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(WispPalette.subtlePanelTop, in: Capsule())
+    }
+
+    private func waveformHeight(at index: Int) -> CGFloat {
+        let idlePattern: [CGFloat] = [16, 28, 20, 34, 18, 26]
+        let activePattern: [CGFloat] = [20, 44, 32, 58, 26, 64, 36, 52]
+        let pattern = appModel.isDictating ? activePattern : idlePattern
+        return pattern[index % pattern.count]
+    }
+
+    private func performPrimaryCaptureAction() async {
+        if appModel.isDictating {
+            await appModel.stopDictation()
+            return
+        }
+
+        appModel.refreshEnvironment()
+
+        if appModel.microphonePermission == .notDetermined {
+            await appModel.requestMicrophoneAccess()
+            guard appModel.microphonePermission == .granted else { return }
+        } else if appModel.microphonePermission != .granted {
+            appModel.openMicrophoneSettings()
+            return
+        }
+
+        if !appModel.modelIsAvailable {
+            await appModel.prepareModelIfNeeded()
+            guard appModel.modelIsAvailable else { return }
+        }
+
+        await appModel.startDictation()
     }
 }
 

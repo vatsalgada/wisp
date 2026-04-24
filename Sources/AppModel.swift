@@ -501,6 +501,12 @@ final class AppModel {
         statusMessage = "Transcript copied."
     }
 
+    func saveLatestTranscriptAsClip() {
+        guard !latestTranscript.isEmpty else { return }
+        saveClipboardClip(text: latestTranscript, source: "Saved from latest transcript")
+        statusMessage = "Saved latest transcript to Clipboard."
+    }
+
     func insertLatestTranscript() {
         guard !latestTranscript.isEmpty else { return }
 
