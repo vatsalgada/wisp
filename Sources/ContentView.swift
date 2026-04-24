@@ -8,7 +8,7 @@ struct ContentView: View {
     var body: some View {
         HSplitView {
             SidebarView(appModel: appModel, pageTopPadding: pageTopPadding)
-                .frame(minWidth: 172, idealWidth: 188, maxWidth: 204)
+                .frame(width: 204)
                 .id(appModel.selectedSidebarItem ?? .capture)
 
             ZStack {
@@ -241,10 +241,6 @@ private struct DetailHeader: View {
                 .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(WispPalette.ink)
             Spacer()
-            HStack(spacing: 10) {
-                MiniHeaderButton(title: "⌘ K")
-                MiniHeaderButton(title: "•••")
-            }
         }
     }
 
@@ -295,43 +291,18 @@ private struct DetailHeader: View {
     }
 }
 
-private struct MiniHeaderButton: View {
-    let title: String
-
-    var body: some View {
-        Button {} label: {
-            Text(title)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(WispPalette.muted)
-                .frame(minWidth: 42, minHeight: 34)
-                .padding(.horizontal, 4)
-                .background(WispPalette.subtlePanelTop.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(WispPalette.panelStroke, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .disabled(true)
-    }
-}
-
 private struct CaptureDashboard: View {
     @Bindable var appModel: AppModel
+    @State private var copiedClipID: AppModel.ClipboardClip.ID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             captureConsole
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 16) {
-                    latestTranscriptPanel
-                    clipboardPanel
-                }
-
-                VStack(alignment: .leading, spacing: 16) {
-                    latestTranscriptPanel
-                    clipboardPanel
-                }
+            HStack(alignment: .top, spacing: 16) {
+                latestTranscriptPanel
+                    .frame(maxWidth: .infinity)
+                clipboardPanel
+                    .frame(maxWidth: .infinity)
             }
         }
     }
@@ -384,7 +355,7 @@ private struct CaptureDashboard: View {
                         .font(.callout.weight(.medium))
                         .foregroundStyle(WispPalette.ink)
 
-                    Label("Space", systemImage: "control")
+                    Text(displayHotkey)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(WispPalette.muted)
                         .padding(.horizontal, 8)
@@ -455,9 +426,6 @@ private struct CaptureDashboard: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(WispPalette.ink)
                 Spacer()
-                Text("...")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(WispPalette.muted)
             }
             .padding(.bottom, 18)
 
@@ -521,14 +489,6 @@ private struct CaptureDashboard: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(WispPalette.ink)
                 Spacer()
-                Button {
-                    appModel.selectedSidebarItem = .clipboard
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.title3.weight(.light))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(WispPalette.muted)
             }
             .padding(.bottom, 18)
 
@@ -541,27 +501,34 @@ private struct CaptureDashboard: View {
                     subtitle: "Future-you has no souvenirs."
                 )
             } else {
-                VStack(spacing: 12) {
-                    ForEach(Array(appModel.clipboardClips.prefix(2))) { clip in
+                VStack(spacing: 10) {
+                    ForEach(Array(appModel.clipboardClips.prefix(5))) { clip in
                         Button {
-                            appModel.selectClipboardClip(clip)
+                            appModel.copyClipboardClip(clip)
+                            copiedClipID = clip.id
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                if copiedClipID == clip.id {
+                                    copiedClipID = nil
+                                }
+                            }
                         } label: {
-                            HStack(alignment: .top, spacing: 10) {
+                            HStack(alignment: .center, spacing: 10) {
                                 Image(systemName: "doc.on.clipboard")
                                     .foregroundStyle(WispPalette.muted)
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(clip.text)
                                         .font(.callout)
                                         .foregroundStyle(WispPalette.ink)
-                                        .lineLimit(2)
+                                        .lineLimit(1)
                                         .multilineTextAlignment(.leading)
-                                    Text(clip.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                    Text(copiedClipID == clip.id ? "Copied" : "Click to copy")
                                         .font(.caption)
-                                        .foregroundStyle(WispPalette.muted)
+                                        .foregroundStyle(copiedClipID == clip.id ? WispPalette.accent : WispPalette.muted)
                                 }
                                 Spacer()
                             }
-                            .padding(12)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
                             .background(WispPalette.subtlePanelTop, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                         .buttonStyle(.plain)
@@ -602,6 +569,15 @@ private struct CaptureDashboard: View {
             return "Listening"
         }
         return "Ready"
+    }
+
+    private var displayHotkey: String {
+        appModel.hotkey
+            .replacingOccurrences(of: "Command", with: "⌘")
+            .replacingOccurrences(of: "Shift", with: "⇧")
+            .replacingOccurrences(of: "Option", with: "⌥")
+            .replacingOccurrences(of: "Control", with: "⌃")
+            .replacingOccurrences(of: "-", with: " ")
     }
 
     private func readinessMetric(title: String, symbolName: String, isReady: Bool) -> some View {
