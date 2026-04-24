@@ -634,6 +634,8 @@ private struct CaptureDashboard: View {
 private struct HistoryView: View {
     @Bindable var appModel: AppModel
     @State private var copiedRecordID: AppModel.TranscriptRecord.ID?
+    @State private var draftRecordID: AppModel.TranscriptRecord.ID?
+    @State private var draftText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -703,8 +705,8 @@ private struct HistoryView: View {
                             isSelected: appModel.selectedTranscriptRecordID == record.id,
                             isCopied: copiedRecordID == record.id
                         ) {
+                            saveDraftIfNeeded()
                             appModel.selectTranscript(record)
-                            showCopiedFeedback(for: record)
                         }
                     }
                 }
@@ -732,33 +734,72 @@ private struct HistoryView: View {
                     }
                 }
 
-                ScrollView {
-                    Text(selectedRecord.text)
-                        .font(.body)
-                        .foregroundStyle(Color.black.opacity(0.88))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                        .padding(14)
+                TextEditor(text: $draftText)
+                    .font(.body)
+                    .foregroundStyle(Color.black.opacity(0.88))
+                    .scrollContentBackground(.hidden)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, minHeight: 280, alignment: .topLeading)
+                    .background(
+                        Color.white.opacity(0.97),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
+
+                if let audioFileURL = selectedRecord.audioFileURL {
+                    HStack(spacing: 10) {
+                        Label("Recording available", systemImage: "waveform")
+                            .foregroundStyle(WispPalette.muted)
+                        Spacer()
+                        Button("Play") {
+                            appModel.openTranscriptRecording(selectedRecord)
+                        }
+                        .disabled(!FileManager.default.fileExists(atPath: audioFileURL.path))
+                    }
+                    .font(.subheadline)
+                    .padding(12)
+                    .background(WispPalette.subtlePanelTop, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .frame(maxWidth: .infinity, minHeight: 280, alignment: .topLeading)
-                .background(
-                    Color.white.opacity(0.97),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
 
                 HStack {
+                    if isDraftDirty(for: selectedRecord) {
+                        Label("Unsaved changes", systemImage: "circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(WispPalette.accent)
+                    } else {
+                        Label("Saved", systemImage: "checkmark.circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(WispPalette.muted)
+                    }
+
+                    Spacer()
+
                     Button(role: .destructive) {
                         appModel.deleteTranscript(selectedRecord)
+                        syncDraft(with: appModel.selectedTranscriptRecord)
                     } label: {
                         Text("Delete transcript")
                     }
-                    Spacer()
                 }
+            } else {
+                EmptyStateBanner(
+                    title: "No transcript selected",
+                    subtitle: "Choose one from the list to review or edit it."
+                )
             }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .panelBackground()
+        .onAppear {
+            syncDraft(with: appModel.selectedTranscriptRecord)
+        }
+        .onChange(of: appModel.selectedTranscriptRecordID) { _, _ in
+            saveDraftIfNeeded()
+            syncDraft(with: appModel.selectedTranscriptRecord)
+        }
+        .onDisappear {
+            saveDraftIfNeeded()
+        }
     }
 
     private func historyDetailHeader(for selectedRecord: AppModel.TranscriptRecord) -> some View {
@@ -766,7 +807,7 @@ private struct HistoryView: View {
             Text(selectedRecord.createdAt.formatted(date: .complete, time: .shortened))
                 .font(.headline)
                 .foregroundStyle(WispPalette.ink)
-            Text("Saved locally")
+            Text(isDraftDirty(for: selectedRecord) ? "Unsaved changes" : "Saved locally")
                 .foregroundStyle(WispPalette.muted)
         }
     }
@@ -785,22 +826,64 @@ private struct HistoryView: View {
 
     @ViewBuilder
     private func historyActionButtons(for selectedRecord: AppModel.TranscriptRecord) -> some View {
+        if isDraftDirty(for: selectedRecord) {
+            Button("Save") {
+                saveDraft(for: selectedRecord)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(WispPalette.accent)
+        }
+
         Button("Copy") {
-            appModel.copyTranscript(selectedRecord)
+            appModel.copyTranscriptText(draftText)
             showCopiedFeedback(for: selectedRecord)
         }
 
+        Button("Save clip") {
+            appModel.saveTranscriptTextAsClip(draftText)
+        }
+
         Button("Insert") {
-            appModel.insertTranscript(selectedRecord)
+            saveDraftIfNeeded()
+            if let refreshedRecord = appModel.selectedTranscriptRecord {
+                appModel.insertTranscript(refreshedRecord)
+            }
         }
 
         Button("Reveal in Finder") {
+            saveDraftIfNeeded()
             appModel.revealTranscriptInFinder(selectedRecord)
         }
 
         Button("Open file") {
+            saveDraftIfNeeded()
             appModel.openTranscriptFile(selectedRecord)
         }
+    }
+
+    private func syncDraft(with record: AppModel.TranscriptRecord?) {
+        draftRecordID = record?.id
+        draftText = record?.text ?? ""
+    }
+
+    private func isDraftDirty(for record: AppModel.TranscriptRecord) -> Bool {
+        draftRecordID == record.id && draftText != record.text
+    }
+
+    private func saveDraftIfNeeded() {
+        guard let record = draftRecord, isDraftDirty(for: record) else { return }
+        saveDraft(for: record)
+    }
+
+    private func saveDraft(for record: AppModel.TranscriptRecord) {
+        if appModel.saveTranscript(record, text: draftText) {
+            syncDraft(with: appModel.selectedTranscriptRecord)
+        }
+    }
+
+    private var draftRecord: AppModel.TranscriptRecord? {
+        guard let draftRecordID else { return nil }
+        return appModel.transcriptHistory.first { $0.id == draftRecordID }
     }
 
     private func showCopiedFeedback(for record: AppModel.TranscriptRecord) {
