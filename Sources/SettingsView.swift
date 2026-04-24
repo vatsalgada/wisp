@@ -34,7 +34,7 @@ private struct SettingsPageContent: View {
             if includeHeader {
                 SectionHeader(
                     title: "Preferences",
-                    subtitle: "Tune appearance, defaults, and launch behavior without leaving the app."
+                    subtitle: "Set how Wisp looks, starts, and behaves."
                 )
             }
 
@@ -61,7 +61,7 @@ private struct SettingsPageContent: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
                 title: "Appearance",
-                subtitle: "Pick how Wisp should look when you’re working through recordings and transcripts."
+                subtitle: "Choose the app theme."
             )
 
             Picker("Theme", selection: themeBinding) {
@@ -86,7 +86,7 @@ private struct SettingsPageContent: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
                 title: "Behavior",
-                subtitle: "Control how dictation starts, how Wisp launches, and which shortcuts are in play."
+                subtitle: "Choose how recording starts."
             )
 
             Toggle(isOn: $appModel.usePushToTalk) {
@@ -102,7 +102,7 @@ private struct SettingsPageContent: View {
             Toggle(isOn: $appModel.rememberCopiedText) {
                 SettingsToggleCopy(
                     title: "Remember copied text",
-                    subtitle: "Opt in to saving the latest copied text snippets in Wisp’s local clipboard."
+                    subtitle: "Save copied text as local clips."
                 )
             }
             .toggleStyle(.switch)
@@ -122,7 +122,7 @@ private struct SettingsPageContent: View {
             settingsValueRow(
                 title: "Keyboard shortcut",
                 value: appModel.hotkey,
-                subtitle: "Global shortcut for starting and stopping dictation."
+                subtitle: "Start or stop recording from anywhere."
             )
         }
         .padding(20)
@@ -133,15 +133,15 @@ private struct SettingsPageContent: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
                 title: "Models",
-                subtitle: "Choose your default model and manage downloads from one clear place."
+                subtitle: "Choose the local model Wisp uses."
             )
 
             settingsValueRow(
                 title: "Default model",
                 value: appModel.selectedModel.displayName,
                 subtitle: appModel.selectedModelIsInstalled
-                    ? "\(appModel.selectedModel.displayName) is downloaded and ready for local dictation."
-                    : "Download \(appModel.selectedModel.displayName) in Models before using it for dictation."
+                    ? "\(appModel.selectedModel.displayName) is ready."
+                    : "Download \(appModel.selectedModel.displayName) before recording."
             )
 
             Divider()
@@ -153,12 +153,12 @@ private struct SettingsPageContent: View {
             )
 
             HStack(spacing: 10) {
-                Button("Manage Models") {
+                Button("Manage models") {
                     appModel.selectedSidebarItem = .models
                 }
 
                 if !appModel.installedModels.isEmpty {
-                    Button("Open Models Folder") {
+                    Button("Open models folder") {
                         appModel.openModelsFolder()
                     }
                 }
@@ -172,34 +172,34 @@ private struct SettingsPageContent: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
                 title: "Recovery",
-                subtitle: "Jump straight to the places you need when mic or insertion permissions need attention."
+                subtitle: "Open the system settings Wisp may need."
             )
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) {
-                    Button("Microphone Settings") {
+                    Button("Microphone settings") {
                         appModel.openMicrophoneSettings()
                     }
 
-                    Button("Accessibility Settings") {
+                    Button("Accessibility settings") {
                         appModel.openAccessibilitySettings()
                     }
 
-                    Button("Open macOS Settings Window") {
+                    Button("Open macOS settings") {
                         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Button("Microphone Settings") {
+                    Button("Microphone settings") {
                         appModel.openMicrophoneSettings()
                     }
 
-                    Button("Accessibility Settings") {
+                    Button("Accessibility settings") {
                         appModel.openAccessibilitySettings()
                     }
 
-                    Button("Open macOS Settings Window") {
+                    Button("Open macOS settings") {
                         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                     }
                 }
